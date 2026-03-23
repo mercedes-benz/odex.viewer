@@ -1,0 +1,4 @@
+graft diag_server/openapi_server/frontend
+include diag_server/openapi_server/openapi/openapi.yaml
+
+prune scripts

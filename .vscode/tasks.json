@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "generateOpenApiCode",
+      "type": "shell",
+      "options": {"cwd": "${workspaceFolder}/server"},
+      "command": "./generateServerStub.bat"
+    }
+  ]
+}

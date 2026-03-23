@@ -1,0 +1,25 @@
+name: odex.viewer - OpenAPI test pipeline
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'diag-server.yml'
+      - 'odxtools-types.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'diag-server.yml'
+      - 'odxtools-types.json'
+  workflow_dispatch:
+
+jobs: 
+  linting:
+    runs-on: os-small-amd64-linux
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      # Run Spectral
+      - uses: stoplightio/spectral-action@latest
+        with:
+          file_glob: 'diag-server.yml'

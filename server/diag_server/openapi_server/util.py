@@ -1,0 +1,156 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+from __future__ import annotations
+
+import datetime
+from typing import TYPE_CHECKING, Any, get_args
+
+if TYPE_CHECKING:
+    from diag_server.openapi_server.models.base_model import Model
+
+from diag_server.openapi_server import typing_utils
+
+
+def _deserialize(data: Any, klass: type) -> Any:
+    """Deserializes dict, list, str into an object.
+
+    :param data: dict, list or str.
+    :param klass: class literal, or string of class name.
+
+    :return: object.
+    """
+    if data is None:
+        return None
+
+    if klass in (int, float, str, bool, bytearray):
+        return _deserialize_primitive(data, klass)
+    elif klass == object:
+        return _deserialize_object(data)
+    elif klass == datetime.date:
+        return deserialize_date(data)
+    elif klass == datetime.datetime:
+        return deserialize_datetime(data)
+    elif typing_utils.is_generic(klass):
+        if typing_utils.is_list(klass):
+            return _deserialize_list(data, get_args(klass)[0])
+        if typing_utils.is_dict(klass):
+            return _deserialize_dict(data, get_args(klass)[1])
+    else:
+        return deserialize_model(data, klass)
+
+
+def _deserialize_primitive(data: Any, klass: type[int | float | str | bool | bytearray]) -> int | float | str | bool | bytearray:
+    """Deserializes to primitive type.
+
+    :param data: data to deserialize.
+    :param klass: class literal.
+
+    :return: int, long, float, str, bool.
+    :rtype: int | long | float | str | bool
+    """
+    try:
+        value = klass(data)
+    except UnicodeEncodeError:
+        value = data
+    except TypeError:
+        value = data
+    return value
+
+
+def _deserialize_object(value: object) -> object:
+    """Return an original value.
+
+    :return: object.
+    """
+    return value
+
+
+def deserialize_date(string: str) -> datetime.date | str | None:
+    """Deserializes string to date.
+
+    :param string: str.
+    :type string: str
+    :return: date.
+    :rtype: date
+    """
+    if string is None:
+      return None
+
+    try:
+        from dateutil.parser import parse
+        return parse(string).date() # type: ignore[no-any-return]
+    except ImportError:
+        return string
+
+
+def deserialize_datetime(string: str) -> datetime.datetime | str | None:
+    """Deserializes string to datetime.
+
+    The string should be in iso8601 datetime format.
+
+    :param string: str.
+    :type string: str
+    :return: datetime.
+    :rtype: datetime
+    """
+    if string is None:
+      return None
+
+    try:
+        from dateutil.parser import parse
+        return parse(string) # type: ignore[no-any-return]
+    except ImportError:
+        return string
+
+
+def deserialize_model(data: dict[str, Any] | list[Any], klass: type[Model]) -> Model | dict[str, Any] | list[Any]:
+    """Deserializes list or dict to model.
+
+    :param data: dict, list.
+    :type data: dict | list
+    :param klass: class literal.
+    :return: model object.
+    """
+    instance = klass()
+
+    if not instance.openapi_types:
+        return data
+
+    for attr, attr_type in instance.openapi_types.items():
+        if data is not None \
+                and instance.attribute_map[attr] in data \
+                and isinstance(data, (list, dict)):
+            if isinstance(data, list):
+                value = data
+            else:
+                value = data[instance.attribute_map[attr]]
+            setattr(instance, attr, _deserialize(value, attr_type))
+
+    return instance
+
+
+def _deserialize_list(data: Any, boxed_type: type) -> list[Any]:
+    """Deserializes a list and its elements.
+
+    :param data: list to deserialize.
+    :type data: list
+    :param boxed_type: class literal.
+
+    :return: deserialized list.
+    :rtype: list
+    """
+    return [_deserialize(sub_data, boxed_type)
+            for sub_data in data]
+
+
+def _deserialize_dict(data: Any, boxed_type: type) -> dict[str, Any]:
+    """Deserializes a dict and its elements.
+
+    :param data: dict to deserialize.
+    :type data: dict
+    :param boxed_type: class literal.
+
+    :return: deserialized dict.
+    :rtype: dict
+    """
+    return {k: _deserialize(v, boxed_type)
+            for k, v in data.items() }

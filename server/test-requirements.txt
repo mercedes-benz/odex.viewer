@@ -1,0 +1,6 @@
+Flask-Testing==0.8.1
+pytest==9.0.1
+schemathesis==4.5.1
+mypy>=1.18.2
+ruff>=0.14.5
+coverage>=7.11.3

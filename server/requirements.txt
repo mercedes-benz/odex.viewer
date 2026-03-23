@@ -1,0 +1,3 @@
+connexion[swagger-ui,uvicorn,flask]~=3.1.0
+odxtools==11.0.2
+python-dateutil

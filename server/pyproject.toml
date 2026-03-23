@@ -1,0 +1,137 @@
+[build-system]
+requires = [
+    "setuptools >= 59",
+    "wheel >= 0.41"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "odex.viewer"
+description = "A web-based viewer for exploring automotive diagnostic data description files based on the file format described by ISO 22901. It consists of a frontend and a backend server. The backend provides the underlying data via a RESTfull HTTP API, whilst the frontend visualizes said data within a web browser using web technologies."
+license = "AGPL-3.0-only"
+authors = [
+    {name = "Michael Hahn", email = "michael.a.hahn@mercedes-benz.com"},
+    {name = "Andreas Lauser", email = "andreas.lauser@mercedes-benz.com"},
+    
+]
+maintainers = [
+    {name = "Michael Hahn", email = "michael.a.hahn@mercedes-benz.com"},
+    {name = "Andreas Lauser", email = "andreas.lauser@mercedes-benz.com"},
+]
+readme = "README.md"
+requires-python = ">=3.10"
+version = "0.1.0"
+keywords = ['odx', 'pdx', 'automotive', 'diagnostics', 'odx viewer', 'viewer']
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Environment :: Web Environment',
+    'Intended Audience :: Developers',
+    'Intended Audience :: End Users/Desktop',
+    'Operating System :: OS Independent',
+]
+dependencies = [
+    "connexion[swagger-ui,uvicorn,flask]~=3.1.0",
+    "odxtools==11.0.2",
+    "python-dateutil",
+]
+
+[dependency-groups]
+test = [
+     "Flask-Testing==0.8.1",
+     "pytest>=9.0.1",
+     "schemathesis==4.5.1",
+     "mypy>=1.18.2",
+     "ruff>=0.14.5",
+     "coverage>=7.11.3",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mercedes-benz/odex.viewer"
+"Bug Tracker" = "https://github.com/mercedes-benz/odex.viewer/issues"
+"Repository" = "https://github.com/mercedes-benz/odex.viewer"
+
+[project.scripts]
+odex_viewer = "diag_server.openapi_server.__main__:main"
+
+[tool.mypy]
+exclude = [
+	"build",
+]
+strict = true
+implicit_reexport = true
+disable_error_code = ["import-untyped"]
+untyped_calls_exclude = ["diag_server.openapi_server.models"]
+
+# mypy per-module options for generated files
+[[tool.mypy.overrides]]
+module = "diag_server.openapi_server.controllers.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "diag_server.openapi_server.models.*"
+ignore_missing_imports = true
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["no-untyped-def", "no-untyped-call", "no-any-return"]
+
+[tool.ruff]
+
+line-length = 100
+indent-width = 4
+
+lint.select = [
+    "E",  # pycodestyle Error
+    "W",  # pycodestyle Warning
+    "F",  # pyflakes
+    "B",  # pyflakes-bugbear
+    "UP",  # pyupgrade
+    "C4",  # flake8-comprehensions
+]
+lint.ignore = [
+    "E501",  # line too long
+    "F541",  # f-string-missing-placeholders
+    "W293",  # empty lines contains white space
+]
+exclude = [
+    "docs",
+    "diag_server/openapi_server",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["diag_server"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports
+"tests/test_ecu_config.py" = ["W291", "W293"]  # trailing whitespace; empty line contains white space
+
+[tool.pytest]
+pythonpath = [
+  ".",
+]
+minversion = "9.0"
+testpaths = [
+    "tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",]
+
+[tool.coverage.run]
+source = ["diag_server"]
+omit = [
+    # omit python files used for code generation, testing, etc.
+    "tests/*",
+    "export_openapi_models.py",
+    "gunicorn_config.py",
+    "upload_pdx_file.py",
+    "diag_server/gunicorn_app.py",
+    # omit generated python files of openapi_server
+    "diag_server/openapi_server/controllers/*",
+    "diag_server/openapi_server/models/*",
+]

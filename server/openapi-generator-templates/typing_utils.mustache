@@ -1,0 +1,31 @@
+import sys
+from typing import Any, get_origin
+
+if sys.version_info < (3, 7):
+    import typing
+
+    def is_generic(klass):
+        """ Determine whether klass is a generic class """
+        return type(klass) == typing.GenericMeta
+
+    def is_dict(klass):
+        """ Determine whether klass is a Dict """
+        return klass.__extra__ == dict
+
+    def is_list(klass):
+        """ Determine whether klass is a List """
+        return klass.__extra__ == list
+
+else:
+
+    def is_generic(klass: object) -> bool:
+        """ Determine whether klass is a generic class """
+        return get_origin(klass) is not None
+
+    def is_dict(klass: object) -> bool:
+        """ Determine whether klass is a Dict """
+        return get_origin(klass) == dict
+
+    def is_list(klass: object) -> bool:
+        """ Determine whether klass is a List """
+        return get_origin(klass) == list

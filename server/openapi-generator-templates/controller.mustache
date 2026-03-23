@@ -1,0 +1,143 @@
+import connexion
+
+from diag_server import response_mapping
+from typing import Dict
+from typing import Tuple
+from typing import Union
+
+{{#imports}}{{import}}  # noqa: E501
+{{/imports}}
+from {{packageName}} import util
+{{#operations}}
+{{#operation}}
+
+
+def {{operationId}}({{#allParams}}{{paramName}}{{^required}}=None{{/required}}{{^-last}}, {{/-last}}{{/allParams}}{{^hasParams}}body=None{{/hasParams}}{{#hasParams}}, body=None{{/hasParams}}):  # noqa: E501
+    """{{summary}}{{^summary}}{{operationId}}{{/summary}}
+
+    {{notes}} # noqa: E501
+
+    {{#allParams}}
+    :param {{paramName}}: {{description}}
+        {{^isContainer}}
+            {{#isPrimitiveType}}
+              {{#isFile}}
+    :type {{paramName}}: werkzeug.datastructures.FileStorage
+              {{/isFile}}
+              {{^isFile}}
+    :type {{paramName}}: {{>param_type}}
+              {{/isFile}}
+            {{/isPrimitiveType}}
+            {{#isUuid}}
+    :type {{paramName}}: {{>param_type}}
+            {{/isUuid}}
+            {{^isPrimitiveType}}
+                {{#isFile}}
+    :type {{paramName}}: werkzeug.datastructures.FileStorage
+                {{/isFile}}
+                {{^isFile}}
+                    {{^isUuid}}
+    :type {{paramName}}: dict | bytes
+                    {{/isUuid}}
+                {{/isFile}}
+            {{/isPrimitiveType}}
+        {{/isContainer}}
+        {{#isArray}}
+            {{#items}}
+                {{#isPrimitiveType}}
+    :type {{paramName}}: List[{{>param_type}}]
+                {{/isPrimitiveType}}
+                {{^isPrimitiveType}}
+    :type {{paramName}}: list | bytes
+                {{/isPrimitiveType}}
+            {{/items}}
+        {{/isArray}}
+        {{#isMap}}
+            {{#items}}
+                {{#isPrimitiveType}}
+    :type {{paramName}}: Dict[str, {{>param_type}}]
+                {{/isPrimitiveType}}
+                {{^isPrimitiveType}}
+    :type {{paramName}}: dict | bytes
+                {{/isPrimitiveType}}
+            {{/items}}
+        {{/isMap}}
+    {{/allParams}}
+    :param body: The raw request body
+
+    :rtype: {{returnType}}{{^returnType}}None{{/returnType}}
+    """
+    {{#allParams}}
+        {{^isContainer}}
+            {{#isDate}}
+    {{paramName}} = util.deserialize_date({{paramName}})
+            {{/isDate}}
+            {{#isDateTime}}
+    {{paramName}} = util.deserialize_datetime({{paramName}})
+            {{/isDateTime}}
+            {{#isPrimitiveType}}
+              {{^isPathParam}}
+                {{^isQueryParam}}
+                  {{^isFormParam}}
+    {{paramName}} = body
+                  {{/isFormParam}}
+                {{/isQueryParam}}
+              {{/isPathParam}}
+            {{/isPrimitiveType}}
+            {{^isPrimitiveType}}
+                {{^isFile}}
+                    {{^isUuid}}
+                        {{^isPathParam}}
+    if 'content-type' in connexion.request.headers:
+        if body:
+            if connexion.request.headers['content-type'] == 'application/json':
+                {{paramName}} = {{baseType}}{{^baseType}}{{#dataType}} {{.}}{{/dataType}}{{/baseType}}.from_dict(body)  # noqa: E501
+            else:
+                {{paramName}} = body
+                        {{/isPathParam}}
+                        {{/isUuid}}
+                    {{/isFile}}
+                {{/isPrimitiveType}}
+            {{/isContainer}}
+            {{#isArray}}
+                {{#items}}
+                    {{#isDate}}
+    if 'content-type' in connexion.request.headers and connexion.request.headers['content-type'] == 'application/json':
+        if body:
+            {{paramName}} = [util.deserialize_date(s) for s in body]  # noqa: E501
+                    {{/isDate}}
+                    {{#isDateTime}}
+    if 'content-type' in connexion.request.headers and connexion.request.headers['content-type'] == 'application/json':
+        if body:
+            {{paramName}} = [util.deserialize_datetime(s) for s in body]  # noqa: E501
+                    {{/isDateTime}}
+                    {{#complexType}}
+    if 'content-type' in connexion.request.headers and connexion.request.headers['content-type'] == 'application/json':
+        if body:
+            {{paramName}} = [{{complexType}}.from_dict(d) for d in body]  # noqa: E501
+                    {{/complexType}}
+                {{/items}}
+            {{/isArray}}
+            {{#isMap}}
+                {{#items}}
+                    {{#isDate}}
+    if 'content-type' in connexion.request.headers and connexion.request.headers['content-type'] == 'application/json':
+        if body:
+            {{paramName}} = {k: util.deserialize_date(v) for k, v in six.iteritems(body)}  # noqa: E501
+                    {{/isDate}}
+                    {{#isDateTime}}
+    if 'content-type' in connexion.request.headers and connexion.request.headers['content-type'] == 'application/json':
+        if body:
+            {{paramName}} = {k: util.deserialize_datetime(v) for k, v in six.iteritems(body)}  # noqa: E501
+                    {{/isDateTime}}
+                    {{#complexType}}
+    if 'content-type' in connexion.request.headers and connexion.request.headers['content-type'] == 'application/json':
+        if body:
+            {{paramName}} = {k: {{baseType}}.from_dict(v) for k, v in six.iteritems(body)}  # noqa: E501
+                    {{/complexType}}
+                {{/items}}
+            {{/isMap}}
+    {{/allParams}}
+    return response_mapping.{{operationId}}({{#allParams}}{{paramName}}{{^required}}={{paramName}}{{/required}}{{^-last}}, {{/-last}}{{/allParams}})
+{{/operation}}
+{{/operations}}
