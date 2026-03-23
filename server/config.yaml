@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+templateDir: openapi-generator-templates/
+files:
+  controller.mustache:
+    templateType: API
+    destinationFilename: .py
+globalProperties:
+  skipFormModel: true
+additionalProperties:
+  packageName: diag_server.openapi_server

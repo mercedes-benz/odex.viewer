@@ -1,0 +1,21 @@
+{
+  "spectral.rulesetFile": ".spectral.yml",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll": "explicit"
+    },
+  },
+  "plantuml.server": "http://localhost:9090/",
+  "plantuml.render": "PlantUMLServer",
+  "plantuml.includepaths": ["server/docs/diagrams","viewer/docs/diagrams"],
+  "plantuml.exportOutDir": ".",
+  "plantuml.exportIncludeFolderHeirarchy": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "python.testing.pytestArgs": [
+    "server"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
+}

@@ -1,0 +1,41 @@
+# OpenAPI Generator Configuration
+
+## START: SPECIAL-HANDLING
+# Ignore the following initially generated model file. The ones listed here needed some special adaptations and are therefore changed manually.
+# However, this also means if the underlying schema definition the OpenAPI file is changed, the python class has to be manually updated accordingly.
+
+## Special handling for recursive type definitions 
+diag_server/openapi_server/models/special_data_group_values_inner.py
+diag_server/openapi_server/models/function_node_group.py
+
+## Special handling for "oneOf" JSON schema type definitions with simple types, which are not supported by the generator leading to the generation of empty model files
+diag_server/openapi_server/models/compu_rational_coeffs_numerators_inner.py
+diag_server/openapi_server/models/limit_value.py
+diag_server/openapi_server/models/comparam_instance_value_any_of_inner.py
+diag_server/openapi_server/models/comparam_instance_value.py
+
+## END: SPECIAL-HANDLING
+
+## START: IGNORED FILES
+
+# Do not generate test files
+diag_server/openapi_server/test/**
+
+## Ignore the following python files during generation, since they are not related to the OpenAPI content and contain manual changes
+diag_server/*
+diag_server/openapi_server/__main__.py
+
+## Ignore the following supporting files
+Dockerfile
+git_push.sh
+README.md
+setup.py
+tox.ini
+.gitignore
+.dockerignore
+.openapi-generator-ignore
+.travis.yml
+requirements.txt
+test-requirements.txt
+
+## END: IGNORED FILES

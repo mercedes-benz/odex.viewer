@@ -1,0 +1,1290 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+openapi: "3.0.3"
+info:
+  title: RESTful HTTP API documentation of the odex.viewer backend server
+  description: API documentation of the RESTful HTTP API of the odex.viewer backend server to interact with ODX-based diagnostic data.
+  version: "1.0"
+  contact:
+    name: odex.viewer Team
+    url: https://github.com/mercedes-benz/odex.viewer
+servers:
+  - url: http://localhost:8080/v1
+tags:
+  - name: Diagnostic Data Set
+    description: Methods for managing diagnostic data sets known to the server, e.g., adding or removing PDX files.
+  - name: Objects
+    description: Methods for requesting objects and their metadata from the server.
+  - name: Structured Data Retrieval
+    description: Methods for retrieving structured data using OpenAPI Schema type names.
+  - name: Diagnostic Variants
+    description: Methods for requesting diagnostic variants from a diagnostic data set of the server.
+  - name: Revision History
+    description: Methods for requesting the revision history of documents or variants.
+  - name: Diagnostic Communications
+    description: Methods for requesting diagnostic communication definitions.
+  - name: Diagnostic Trouble Codes
+    description: Methods for requesting diagnostic trouble code (DTC) definitions.
+  - name: Data Object Properties
+    description: Methods for requesting data object property (DOP) definitions.
+  - name: State Charts
+    description: Methods for requesting state chart definitions.
+paths:
+  /diagnostic-data-sets:
+    get:
+      tags:
+        - Diagnostic Data Set
+      description: >-
+        Returns the collection of diagnostic data types of the server.
+      operationId: getDiagnosticDataTypes
+      responses:
+        "200":
+          description: Collection of diagnostic data set resources of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticDataTypeCollection"
+              example: { "items": ["PDX"] }
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{data-type}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataTypeParameter"
+    get:
+      tags:
+        - Diagnostic Data Set
+      description: >-
+        Returns the collection of diagnostic data descriptors of a specific type of diagnostic data set of the Server
+      operationId: getDiagnosticDataCollectionOfType
+      responses:
+        "200":
+          description: Selected collection of diagnostic data set of the Server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticDataCollection"
+              example:
+                {
+                  "items":
+                    [
+                      {
+                        "perma_id": "pdx-a",
+                        "display_name": "PDX of ECU-A",
+                        "file_name": "ecu-a.pdx",
+                        "version": "1.0.0",
+                        "diagnostic_layer_containers":
+                          [
+                            {
+                              "perma_id": "dlc-1",
+                              "ephemeral_id": 123,
+                              "short_name": "somersault",
+                              "isMainContainer": true,
+                            },
+                          ],
+                      },
+                    ],
+                }
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+    post:
+      tags:
+        - Diagnostic Data Set
+      description: >-
+        Upload diagnostic data set to the server.
+      operationId: uploadDiagnosticDataToServer
+      x-codegen-request-body-name: diagnostic_data_request
+      requestBody:
+        content:
+          multipart/form-data: # Diagnostic data file with attached metadata
+            schema:
+              type: object
+              properties:
+                metadata:
+                  type: object
+                  properties:
+                    display_name:
+                      type: string
+                    strict_mode:
+                      description: Whether odxtools shall parse the file in strict-mode or not.
+                      type: boolean
+                file_content:
+                  type: string
+                  format: binary
+            encoding:
+              metadata:
+                contentType: application/json
+              file_content:
+                contentType: application/octet-stream
+      responses:
+        "201":
+          $ref: "#/components/responses/NewResourceCreated"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+    delete:
+      tags:
+        - Diagnostic Data Set
+      description: >-
+        Deletes all diagnostic data set for the specified data type of the server.
+      operationId: deleteAllDiagnosticDataFromType
+      responses:
+        "204":
+          description: >-
+            Diagnostic data set resources are successfully deleted.
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{data-type}/{diag-data-set-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataTypeParameter"
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+    delete:
+      tags:
+        - Diagnostic Data Set
+      description: >-
+        Deletes a specific diagnostic data set resource from the specified data type of the server.
+      operationId: deleteDiagnosticDataFromType
+      responses:
+        "204":
+          description: >-
+            Diagnostic data set resource is successfully deleted.
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+    get:
+      tags:
+        - Diagnostic Variants
+      description: >-
+        Returns the list of diagnostic variants from the given diagnostic data set.
+      parameters:
+        - $ref: "#/components/parameters/FilterVariantCollectionByPermaIdsQuery"
+      operationId: getDiagnosticVariantsOfDiagnosticDataSet
+      responses:
+        "200":
+          description: Selected list of diagnostic variants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticVariantsCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/revision-history:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+    get:
+      tags:
+        - Revision History
+      description: >-
+        Returns the revision history of the main diagnostic layer container for a given diagnostic data set.
+      operationId: getRevisionHistoryOfDiagnosticDataSet
+      responses:
+        "200":
+          description: The revision history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevisionHistory"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"        
+  /diagnostic-data-sets/{diag-data-set-id}/revision-history/{perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/PermaObjectId"
+    get:
+      tags:
+        - Revision History
+      description: >-
+        Returns the revision history of a given BASE-VARIANT or ECU-VARIANT object from the given diagnostic data set.
+      operationId: getRevisionHistoryOfVariant
+      responses:
+        "200":
+          description: The revision history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevisionHistory"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+    get:
+      tags:
+        - Diagnostic Variants
+      description: >-
+        Returns a single diagnostic variant with the given ID, if there exists one.
+      operationId: getDiagnosticVariant
+      responses:
+        "200":
+          description: The diagnostic variant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticVariant"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+    get:
+      tags:
+        - Diagnostic Communications
+      description: >-
+        Returns the diagnostic communications from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getDiagComms
+      parameters:
+        - $ref: "#/components/parameters/FilterObjectFields"
+      responses:
+        "200":
+          description: The collection of diag comms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagCommCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+      - $ref: "#/components/parameters/DiagnosticCommunicationPermaId"
+    get:
+      tags:
+        - Diagnostic Communications
+      description: >-
+        Returns a diagnostic communication from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getDiagCommByPermaId
+      responses:
+        "200":
+          description: The diag comm related to the given object id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagCommDetails"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diag-comms:
+    get:
+      tags:
+        - Diagnostic Communications
+      description: >-
+        Returns all diagnostic communications from all existing BASE-VARIANT or ECU-VARIANT objects in all diagnostic data sets.
+      operationId: getAllDiagCommsFromAllDiagnosticDataSets
+      parameters:
+        - $ref: "#/components/parameters/FilterObjectFields"
+      responses:
+        "200":
+          description: The collection of all diag comms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagCommsOfVariantsOfDataSetsCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/dtcs:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+    get:
+      tags:
+        - Diagnostic Trouble Codes
+      description: >-
+        Returns the diagnostic trouble codes from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getDtcs
+      parameters:
+        - $ref: "#/components/parameters/FilterObjectFields"
+      responses:
+        "200":
+          description: The collection of diagnostic trouble codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DtcCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/dtcs/{dtc-perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+      - $ref: "#/components/parameters/DtcPermaId"
+    get:
+      tags:
+        - Diagnostic Trouble Codes
+      description: >-
+        Returns a diagnostic trouble code from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getDtcByPermaId
+      responses:
+        "200":
+          description: The diagnostic trouble code related to the given object id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DtcWithDopInfo"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /dtcs:
+    get:
+      tags:
+        - Diagnostic Trouble Codes
+      description: >-
+        Returns all diagnostic trouble codes from all existing BASE-VARIANT or ECU-VARIANT objects in all diagnostic data sets.
+      operationId: getAllDtcsFromAllDiagnosticDataSets
+      parameters:
+        - $ref: "#/components/parameters/FilterObjectFields"
+      responses:
+        "200":
+          description: The collection of all diagnostic trouble codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DtcsOfVariantsOfDataSetsCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/dops:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+    get:
+      tags:
+        - Data Object Properties
+      description: >-
+        Returns the data object properties from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getDops
+      parameters:
+        - $ref: "#/components/parameters/FilterObjectFields"
+      responses:
+        "200":
+          description: The collection of data object properties
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DopCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/dops/{dop-perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+      - $ref: "#/components/parameters/DopPermaId"
+    get:
+      tags:
+        - Data Object Properties
+      description: >-
+        Returns a data object property from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getDopByPermaId
+      responses:
+        "200":
+          description: The data object property related to the given object id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DopWithOriginLayerInfo"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /dops:
+    get:
+      tags:
+        - Data Object Properties
+      description: >-
+        Returns all data object properties from all existing BASE-VARIANT or ECU-VARIANT objects in all diagnostic data sets.
+      operationId: getAllDopsFromAllDiagnosticDataSets
+      parameters:
+        - $ref: "#/components/parameters/FilterObjectFields"
+      responses:
+        "200":
+          description: The collection of all data object properties
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DopsOfVariantsOfDataSetsCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/state-charts:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+    get:
+      tags:
+        - State Charts
+      description: >-
+        Returns the state charts from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getStateCharts
+      responses:
+        "200":
+          description: The collection of state charts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StateChartCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/state-charts/{state-chart-perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+      - $ref: "#/components/parameters/StateChartPermaId"
+    get:
+      tags:
+        - State Charts
+      description: >-
+        Returns a state chart from the given BASE-VARIANT or ECU-VARIANT object.
+      operationId: getStateChartByPermaId
+      responses:
+        "200":
+          description: The state chart related to the given state chart id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StateChartWithMetaData"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /state-charts:
+    get:
+      tags:
+        - State Charts
+      description: >-
+        Returns the collection of all state charts in all diagnostic data sets.
+      operationId: getAllStateChartsFromAllDiagnosticDataSets
+      responses:
+        "200":
+          description: The collection of state charts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StateChartWithMetaDataCollection"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /objects/{ephemeral-id}:
+    parameters:
+      - $ref: "#/components/parameters/EphemeralObjectId"
+    get:
+      tags:
+        - Objects
+      description: >-
+        Returns the given object from the Server
+      operationId: getObjectByEphemeralId
+      responses:
+        "200":
+          description: Selected object from the Server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectType"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /metadata/{ephemeral-id}:
+    parameters:
+      - $ref: "#/components/parameters/EphemeralObjectId"
+    get:
+      tags:
+        - Objects
+      description: >-
+        Returns metadata for the given object.
+      operationId: getMetadataOfObjectByEphemeralId
+      parameters:
+        - $ref: "#/components/parameters/ResolveMainDiagLayerContainerOfDiagnosticDataQuery"
+      responses:
+        "200":
+          description: Metadata of object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectMetadata"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /structured-data/{schema-name}/{ephemeral-id}:
+    parameters:
+      - $ref: "#/components/parameters/SchemaName"
+      - $ref: "#/components/parameters/EphemeralObjectId"
+    get:
+      tags:
+        - Structured Data Retrieval
+      description: >-
+        Structured data retrieval by providing the target schema name and the ephemeral object-id to be retrieved.
+      operationId: getStructuredDataByEphemeralId
+      responses:
+        "200":
+          description: The structured data related to the given ephemeral object id and schema.
+          content:
+            application/json:
+              schema:
+                $ref: "odxtools-types.json#/components/schemas/OdxAny"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/objects/{perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/PermaObjectId"
+    get:
+      tags:
+        - Objects
+      description: >-
+        Returns the given object from the Server
+      operationId: getObjectByPermaIdFromDiagnosticDataSet
+      responses:
+        "200":
+          description: Selected object from the Server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectType"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/metadata/{perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/PermaObjectId"
+    get:
+      tags:
+        - Objects
+      description: >-
+        Returns metadata for the given object.
+      operationId: getMetadataByPermaIdFromDiagnosticDataSet
+      parameters:
+        - $ref: "#/components/parameters/ResolveMainDiagLayerContainerOfDiagnosticDataQuery"
+      responses:
+        "200":
+          description: Metadata of object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectMetadata"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/structured-data/{schema-name}/{perma-id}:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/SchemaName"
+      - $ref: "#/components/parameters/PermaObjectId"
+    get:
+      tags:
+        - Structured Data Retrieval
+      description: >-
+        Structured data retrieval by providing the target schema name and the permanent object-id to be retrieved.
+      operationId: getStructuredDataByPermaIdFromDiagnosticDataSet
+      responses:
+        "200":
+          description: The structured data related to the given permanent object id and schema.
+          content:
+            application/json:
+              schema:
+                $ref: "odxtools-types.json#/components/schemas/OdxAny"
+        "default":
+          $ref: "#/components/responses/UnexpectedError"        
+components:
+  parameters:
+    # Path Parameters
+    DiagnosticDataTypeParameter:
+      name: data-type
+      in: path
+      description: The type of diagnostic data to fetch
+      required: true
+      schema:
+        $ref: "#/components/schemas/DiagnosticDataType"
+    DiagnosticDataSetId:
+      name: diag-data-set-id
+      in: path
+      description: ID of the diagnostic data set to fetch
+      required: true
+      schema:
+        type: string
+    EphemeralObjectId:
+      name: ephemeral-id
+      in: path
+      description: The ephemeral ID of the object to fetch
+      required: true
+      schema:
+        type: integer
+    PermaObjectId:
+      name: perma-id
+      in: path
+      description: The permanent ID of the object to fetch
+      required: true
+      schema:
+        type: string    
+    SchemaName:
+      name: schema-name
+      in: path
+      description: Name of the schema to be retrieved
+      required: true
+      schema:
+        $ref: "odxtools-types.json#/components/schemas/OdxSchemaNames"
+    VariantPermaId:
+      name: variant-perma-id
+      in: path
+      description: ID of the variant object to fetch
+      required: true
+      schema:
+        type: string
+    DiagnosticCommunicationPermaId:
+      name: diag-comm-perma-id
+      in: path
+      description: ID of the diagnostic communication to fetch
+      required: true
+      schema:
+        type: string
+    DtcPermaId:
+      name: dtc-perma-id
+      in: path
+      description: ID of the diagnostic trouble code to fetch
+      required: true
+      schema:
+        type: string
+    DopPermaId:
+      name: dop-perma-id
+      in: path
+      description: ID of the diagnostic object property to fetch
+      required: true
+      schema:
+        type: string
+    StateChartPermaId:
+      name: state-chart-perma-id
+      in: path
+      description: ID of the state chart
+      required: true
+      schema:
+        type: string
+    # Query Parameters
+    ResolveMainDiagLayerContainerOfDiagnosticDataQuery:
+      name: resolve_main_diag_layer
+      in: query
+      description: Whether the main diagnostic layer container of a diagnostic data object shall be resolved automatically or not.
+      schema:
+        type: boolean
+    FilterVariantCollectionByPermaIdsQuery:
+      name: filter_variants_by_perma_ids
+      in: query
+      description: Filters the collection of variants provided by a diagnostic data object based on the provided list of permanent object-ids.
+      schema:
+        type: array
+        items:
+          type: string
+      style: form
+      explode: true
+    FilterObjectFields:
+      name: fields
+      in: query
+      description: >-
+        Filters the returned objects based on the list of given fields, i.e., only the fields specified are part of the object representation in the respone.
+        Only the identification field, i.e. the perma_id and ephemeral_id are always returned for any object.
+      schema:
+        type: array
+        items:
+          type: string
+      style: form
+      explode: false
+  schemas:
+    # Generic Schema definitions
+    JsonProblem:
+      description: A JsonProblem object according to RFC-9457.
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: >
+            A URI reference that uniquely identifies the problem type only in the
+            context of the provided API. Opposed to the specification in RFC-9457,
+            it is neither recommended to be dereferenceable and point to a
+            human-readable documentation nor globally unique for the problem type.
+          default: "about:blank"
+          example: "/some/uri-reference"
+        title:
+          type: string
+          description: >
+            A short summary of the problem type. Written in English and readable
+            for engineers, usually not suited for non technical stakeholders and
+            not localized.
+          example: some title for the error situation
+        status:
+          type: integer
+          format: int32
+          description: >
+            The HTTP status code generated by the origin server for this occurrence
+            of the problem.
+          minimum: 100
+          maximum: 600
+          exclusiveMaximum: true
+        detail:
+          type: string
+          description: >
+            A human readable explanation specific to this occurrence of the
+            problem that is helpful to locate the problem and give advice on how
+            to proceed. Written in English and readable for engineers, usually not
+            suited for non technical stakeholders and not localized.
+          example: some description for the error situation
+        instance:
+          type: string
+          format: uri-reference
+          description: >
+            A URI reference that identifies the specific occurrence of the problem,
+            e.g. by adding a fragment identifier or sub-path to the problem type.
+            May be used to locate the root of this problem in the source code.
+          example: "/some/uri-reference#specific-occurrence-context"
+        exception:
+          type: string
+          description: >
+            An optional underlying technical exception, e.g. a stack trace or something comparable.
+    HttpLink:
+      description: A URL providing a link to a resource using the http or https protocol
+      type: string
+      format: uri-reference
+    CreatedResourceReference:
+      description: Reference to a newly created resource
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+
+    DiagnosticLayerContainerInfo:
+      type: object
+      required:
+        - perma_id
+        - ephemeral_id
+        - short_name
+      properties:
+        perma_id:
+          type: string
+        ephemeral_id:
+          type: integer
+        short_name:
+          type: string
+        isMainContainer:
+          type: boolean
+    DiagnosticDataTypeCollection:
+      description: The diagnostic data types supported by the server.
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticDataType"
+    DiagnosticDataType:
+      description: The enumeration of diagnostic data types supported by the server.
+      type: string
+      enum:
+        - PDX
+    DiagnosticDataCollection:
+      description: A collection of diagnostic data descriptors.
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticDataSetDescriptor"
+    DiagnosticDataSetDescriptor:
+      description: A diagnostic data descriptor providing related metadata.
+      type: object
+      required:
+        - perma_id
+      properties:
+        perma_id:
+          type: string
+        ephemeral_id:
+          type: integer  
+        display_name:
+          type: string
+        file_name:
+          type: string
+        creation_date:
+          type: string
+          format: "date-time"
+        last_modified:
+          type: string
+          format: "date-time"
+        version:
+          type: string
+        diagnostic_layer_containers:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticLayerContainerInfo"
+
+    # Object Schemas
+    ObjectType:
+      type: object
+
+    # Diagnostic variants Schemas
+    DiagnosticVariantsCollection:
+      description: A collection of diagnostic variants.
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticVariant"
+    DiagnosticVariant:
+      description: A diagnostic variant.
+      type: object
+      required:
+        - short_name
+        - perma_id
+        - ephemeral_id
+      properties:
+        short_name:
+          type: string
+        long_name:
+          type: string
+        description:
+          type: string
+        variant_type:
+          $ref: "odxtools-types.json#/components/schemas/DiagLayerType"
+        revision:
+          type: string
+        revision_ephemeral_id:
+          type: integer
+        variant_patterns:
+          $ref: "#/components/schemas/VariantPatternCollection"
+        perma_id:
+          type: string
+        ephemeral_id:
+          type: integer
+        sdgs:
+          type: array
+          items:
+            $ref: "odxtools-types.json#/components/schemas/SpecialDataGroup"
+        parent_refs:
+          type: array
+          items:
+            $ref: "odxtools-types.json#/components/schemas/ParentRef"
+    VariantPatternCollection:
+      description: A collection of variant identifying patterns.
+      type: array
+      items:
+        $ref: "#/components/schemas/VariantPattern"
+    VariantPattern:
+      description: A variant identifying pattern.
+      type: array
+      items:
+        type: object
+        properties:
+          diag_comm_short_name:
+            type: string
+          diag_comm_obj_id:
+            type: string
+          param_short_name:
+            type: string
+          param_obj_id:
+            type: string
+          expected_value:
+            anyOf:
+              - type: string
+              - type: integer
+              - type: boolean
+              - type: number
+    RevisionHistory:
+      description: A revision history of a file or diagnostic variant.
+      type: object
+      properties:
+        container_name:
+          type: string
+        container_type:
+          $ref: "#/components/schemas/ContainerType"
+        container_perma_id:
+          type: string
+        container_ephemeral_id:
+          type: integer
+        language:
+          type: string
+        revisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Revision"
+        company_datas:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyData"
+    Revision:
+      description: A revision object within a revision history.
+      type: object
+      required:
+        - container_type
+        - container_name
+      properties:
+        ephemeral_id:
+          type: integer
+        container_type:
+          $ref: "#/components/schemas/ContainerType"
+        container_name:
+          type: string
+        revision_label:
+          type: string
+        state:
+          type: string
+        date:
+          type: string
+          format: "date-time"
+        team_member_ref:
+          $ref: "#/components/schemas/NamedObjectIdRef"
+        tool:
+          type: string
+        modifications:
+          $ref: "#/components/schemas/ModificationList"
+    ContainerType:
+      description: The type of a ODX container an object is nested in.
+      type: string
+      enum:
+        - DIAG_LAYER_CONTAINER
+        - ECU_VARIANT
+    CompanyData:
+      description: A company data object.
+      type: object
+      required:
+        - data_id
+        - short_name
+      properties:
+        data_id:
+          type: string
+        short_name:
+          type: string
+        long_name:
+          type: string
+        description:
+          type: string
+        team_members:
+          type: array
+          items:
+            $ref: "odxtools-types.json#/components/schemas/TeamMember"
+    NamedObjectIdRef:
+      type: object
+      required:
+        - ephemeral_id
+        - name
+      properties:
+        name:
+          type: string
+        ephemeral_id:
+          type: integer
+        perma_id:
+          type: string
+    ModificationList:
+      type: array
+      items:
+        $ref: "odxtools-types.json#/components/schemas/Modification"
+    ObjectMetadata:
+      description: Metadata of an object
+      type: object
+      properties:
+        odx_model_version:
+          type: string
+        short_name:
+          type: string
+        long_name:
+          type: string
+        odx_id:
+          type: string
+        revision:
+          type: string
+        revision_ephemeral_id:
+          type: integer
+        description:
+          type: string
+        class_name:
+          type: string
+    DiagCommCollection:
+      description: A collection of diagnostic communications.
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagCommInfo"
+    DiagCommInfo:
+      description: A Diagnostic Communication definition.
+      allOf:
+        - $ref: "#/components/schemas/DiagCommAdditionalInfos"
+        - anyOf:
+            - $ref: "odxtools-types.json#/components/schemas/DiagService"
+            - $ref: "odxtools-types.json#/components/schemas/SingleEcuJob"
+    DiagCommsOfVariantsOfDataSetsCollection:
+      description: A collection of mappings containing registered diagnostic data sets, their variants and all diagnostic communications defined.
+      type: object
+      properties:
+        diagnostic_data_sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticDataSetDescriptor"
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticVariant"
+        diag_comms:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagCommWithDataSetsVariantRefs"
+    DiagCommWithDataSetsVariantRefs:
+      description: An object holding generic information of a diagnostic communication and a list of perma_ids of all variants it is used in / referenced from.
+      type: object
+      properties:
+        diagComm:
+          $ref: "#/components/schemas/DiagCommGenericInfo"
+        referencing_variant_perma_ids:
+          type: array
+          items:
+            type: string
+        diagnostic_data_set_id:
+          type: string
+    DiagCommAdditionalInfos:
+      description: Additional information about a diagnostic communication.
+      type: object
+      properties:
+        uds_service:
+          $ref: "#/components/schemas/UdsServiceInfo"
+        origin_layer_perma_id:
+          type: string
+        origin_layer_ephemeral_id:
+          type: integer  
+        origin_layer_short_name:
+          type: string
+        origin_layer_type:
+          type: string
+    DiagCommGenericInfo:
+      allOf:
+        - $ref: "#/components/schemas/DiagCommAdditionalInfos"
+        - $ref: "odxtools-types.json#/components/schemas/DiagComm"
+    DiagCommDetails:
+      allOf:
+        - $ref: "#/components/schemas/DiagCommAdditionalInfos"
+        - anyOf:
+            - $ref: "odxtools-types.json#/components/schemas/DiagServiceResolved"
+            - $ref: "odxtools-types.json#/components/schemas/SingleEcuJobResolved"
+    UdsServiceInfo:
+      description: Information about a UDS service.
+      type: object
+      required:
+        - service_id
+        - service_name
+      properties:
+        service_name:
+          type: string
+        service_id:
+          type: integer
+    DtcCollection:
+      description: A collection of diagnostic trouble codes.
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DtcWithDopInfo"
+    DtcWithDopInfo:
+      description: Diagnostic trouble code with information about the DtcDop it is defined in.
+      allOf:
+        - $ref: "#/components/schemas/DtcDopOrigin"
+        - $ref: "odxtools-types.json#/components/schemas/DiagnosticTroubleCode"
+    DtcDopOrigin:
+      type: object
+      properties:
+        origin_dtc_dop_perma_id:
+          type: string
+        origin_dtc_dop_ephemeral_id:
+          type: integer  
+        origin_dtc_dop_short_name:
+          type: string
+        origin_layer_perma_id:
+          type: string
+        origin_layer_ephemeral_id:
+          type: integer
+        origin_layer_short_name:
+          type: string
+        origin_layer_type:
+          type: string
+    DtcsOfVariantsOfDataSetsCollection:
+      description: A collection of mappings containing registered diagnostic data sets, their variants and all diagnostic trouble codes defined.
+      type: object
+      properties:
+        diagnostic_data_sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticDataSetDescriptor"
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticVariant"
+        dtcs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DtcWithDataSetsVariantRefs"
+    DtcWithDataSetsVariantRefs:
+      description: An object holding generic information of a diagnostic trouble code and a list of perma_ids of all variants it is used in / referenced from.
+      type: object
+      properties:
+        dtc:
+          $ref: "#/components/schemas/DtcWithDopInfo"
+        referencing_variant_perma_ids:
+          type: array
+          items:
+            type: string
+        diagnostic_data_set_id:
+          type: string
+    DopCollection:
+      description: A collection of data object properties.
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DopWithOriginLayerInfo"
+    DopsOfVariantsOfDataSetsCollection:
+      description: A collection of mappings containing registered diagnostic data sets, their variants and all data object properties defined.
+      type: object
+      properties:
+        diagnostic_data_sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticDataSetDescriptor"
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticVariant"
+        dops:
+          type: array
+          items:
+            $ref: "#/components/schemas/DopWithDataSetsVariantRefs"
+    DopWithDataSetsVariantRefs:
+      description: An object holding generic information of a data object property and a list of perma_ids of all variants it is used in / referenced from.
+      type: object
+      properties:
+        dop:
+          $ref: "#/components/schemas/DopWithOriginLayerInfo"
+        referencing_variant_perma_ids:
+          type: array
+          items:
+            type: string
+        diagnostic_data_set_id:
+          type: string
+    DopWithOriginLayerInfo:
+      description: An object holding information of a DOP and the origin diagnostic layer it is defined in.
+      type: object
+      properties:
+        dop:
+          $ref: "odxtools-types.json#/components/schemas/DopBase"
+        origin_layer_perma_id:
+          type: string
+        origin_layer_ephemeral_id:
+          type: integer
+        origin_layer_short_name:
+          type: string
+        origin_layer_type:
+          type: string
+    DiagnosticDataSetRef:
+      description: A reference to a diagnostic data set.
+      type: object
+      properties:
+        perma_id:
+          type: string
+        file_name:
+          type: string
+    VariantObjectRef:
+      description: An object holding only important information for reference about a variant (be it ECU-VARIANT or BASE-VARIANT)
+      type: object
+      properties:
+        perma_id:
+          type: string
+        ephemeral_id:
+          type: integer
+        short_name:
+          type: string
+        variant_type:
+          type: string
+    DiagCommRef:
+      description: An object holding the perma-id and name of a DiagComm
+      properties:
+        perma_id:
+          type: string
+        ephemeral_id:
+          type: integer  
+        short_name:
+          type: string
+    StateChartMetaData:
+      description: An object holding metadata of a state chart, identified by its perma-id.
+      properties:
+        state_chart_perma_id:
+          type: string
+        state_chart_ephemeral_id:
+          type: integer  
+        referencing_variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/VariantObjectRef"
+        diagnostic_data_set_ref:
+          $ref: "#/components/schemas/DiagnosticDataSetRef"
+        origin_layer:
+          $ref: "#/components/schemas/VariantObjectRef"
+    StateChartWithMetaData:
+      description: An object holding the state chart, its metadata and (optional) diag comm references grouped by the state transitions
+      properties:
+        state_chart:
+          $ref: "odxtools-types.json#/components/schemas/StateChart"
+        meta_data:
+          $ref: "#/components/schemas/StateChartMetaData"
+        referencing_transitions:
+          type: array
+          items:
+            $ref: "#/components/schemas/StateTransitionWithDiagCommRefs"
+    StateChartWithMetaDataCollection:
+      description: A collection of state charts with its metadata
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StateChartWithMetaData"
+    StateChartCollection:
+      description: A collection of state charts
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "odxtools-types.json#/components/schemas/StateChart"
+    StateTransitionWithDiagCommRefs:
+      description: An object holding information of a state transition with a list of referencing diag comms.
+      properties:
+        state_transition_ref:
+          type: string
+        diag_comms:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagCommRef"
+  headers:
+    LocationHeader:
+      description: URL of a newly created resource.
+      schema:
+        $ref: "#/components/schemas/HttpLink"
+  responses:
+    NewResourceCreated:
+      description: A new resource was created.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreatedResourceReference"
+          example: { "id": "7ab52f10-5ea9-4610-a1de-c414c8265ce4" }
+      headers:
+        Location:
+          $ref: "#/components/headers/LocationHeader"
+    UnexpectedError:
+      description: The request caused an unexpected error.
+      content:
+        "application/problem+json":
+          schema:
+            $ref: "#/components/schemas/JsonProblem"

@@ -1,0 +1,69 @@
+name: odex.viewer - backend server test pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs: 
+  linting:
+    runs-on: os-small-amd64-linux
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install development and testing dependencies
+        working-directory: ./server
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r test-requirements.txt
+
+      - name: Static type checking (mypy)
+        working-directory: ./server
+        run: |
+          python -m mypy .
+
+      - name: Lint code quality (ruff)
+        working-directory: ./server
+        run: |
+          ruff check .
+
+  testing:
+    runs-on: os-small-amd64-linux
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install development and testing dependencies
+        working-directory: ./server
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r test-requirements.txt
+
+      - name: Create somersault.pdx
+        working-directory: ./server
+        run: |
+          python -m tests.pdx.somersaultecu
+
+      - name: Run unit tests and report line coverage
+        working-directory: ./server
+        run: |
+          coverage run -m pytest
+          coverage report
+          coverage html

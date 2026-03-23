@@ -1,0 +1,73 @@
+name: odex.viewer - frontend test pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  
+jobs:
+  linting:
+    runs-on: os-small-amd64-linux
+    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.11.0"
+      - name: Install dependencies
+        working-directory: ./viewer
+        run: npm ci
+      - name: Check type script
+        working-directory: ./viewer
+        run: npm run test:ts
+      - name: Lint viewer
+        working-directory: ./viewer
+        run: npm run lint
+
+  testing:
+    runs-on: os-small-amd64-linux
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install Python dependencies
+        working-directory: ./server
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create somersault.pdx
+        working-directory: ./server
+        run: |
+          python -m tests.pdx.somersaultecu    
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.11.0"
+      - name: Install dependencies
+        working-directory: ./viewer
+        run: npm ci
+      - name: Install Playwright Browsers
+        working-directory: ./viewer
+        run: npx playwright install --with-deps
+
+      - name: Build static page export
+        working-directory: ./viewer
+        run: npm run build
+
+      - name: Run Playwright tests
+        working-directory: ./viewer
+        run: npm run test
+      - uses: actions/upload-artifact@v3
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: viewer/playwright-report/
+          retention-days: 30

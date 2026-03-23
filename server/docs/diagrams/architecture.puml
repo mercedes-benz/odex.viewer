@@ -1,0 +1,94 @@
+@startuml components
+
+node "Frontend" {
+  node "UI Business Logic" {
+
+  }
+  [UI Business Logic] <--> [API Client]
+
+  note right of [UI Business Logic]
+    Based on React & JavaScript with 
+    Next.js & HeroUI frameworks
+  end note
+}
+
+node "Backend" {
+  node "RESTful HTTP API" {
+
+  }
+  node "Server Business Logic" {
+
+  }
+  node "odxtools" {
+
+  }
+  [RESTful HTTP API] <--> [Server Business Logic]
+  [Server Business Logic] <--> odxtools
+
+  note right of [Server Business Logic]
+    Based on Python with 
+    Connexion & Flask frameworks
+  end note
+}
+
+HTTP -- [RESTful HTTP API]
+[API Client] --> HTTP
+
+@enduml
+
+@startuml server
+
+node "Backend" {
+  node "RESTful HTTP API" {
+    component "openapi_server" {
+      component "controllers" {
+      }
+      component "models" {
+      }
+    }
+    [Flask] -- [Connexion]
+    [Connexion] <--> [openapi_server]
+  }
+
+  node "Server Business Logic" {
+    component "response_mapping" {
+
+    }
+    component "tbd A" {
+
+    }
+    component "tbd B" {
+
+    }
+    component "tbd C" {
+
+    }
+    [response_mapping] <--> [tbd A]
+    [response_mapping] <--> [tbd B]
+    [response_mapping] <--> [tbd C]
+  }
+
+  
+
+  node "odxtools" {
+  }
+  database "ODX data"
+
+  note right of [openapi_server]
+    Based on "python-flask"
+    OpenAPI Generator
+  end note
+  
+  [controllers] --> [response_mapping]
+  [response_mapping] ..> [models] : uses
+  
+  [tbd A] --> [odxtools]
+  [tbd B] --> [odxtools]
+  [tbd C] --> [odxtools]
+
+  [odxtools] - [ODX data]
+}
+
+HTTP -- [Flask]
+
+@enduml
