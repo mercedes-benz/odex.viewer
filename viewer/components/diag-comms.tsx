@@ -68,6 +68,7 @@ export function DiagCommMetadata({
       hideHeader
       isStriped
       aria-label="Diagnostic Communication metadata table"
+      data-testid="diag-comm-metadata-table"
     >
       <TableHeader>
         <TableColumn width={200}>KEY</TableColumn>
@@ -989,6 +990,7 @@ export function DiagComms({
       classNames={{
         wrapper: 'max-h-[382px], min-w-full',
       }}
+      data-testid="diag-comm-table"
       selectedKeys={selectedKeys}
       selectionMode="none"
       sortDescriptor={diagComms.sortDescriptor}
@@ -1934,6 +1936,7 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       classNames={{
         wrapper: 'max-h-[382px], min-w-full',
       }}
+      data-testid="diag-comm-table"
       selectedKeys={selectedKeys}
       selectionMode="none"
       sortDescriptor={diagCollection.sortDescriptor}
