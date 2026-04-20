@@ -205,14 +205,19 @@ export default function DiagnosticCommPage() {
           })}
         />
 
-        <h1 className={title()}>Diagnostic Communication</h1>
+        <h1 className={title()} data-testid="diag-comm-title">
+          Diagnostic Communication
+        </h1>
         <p className="mt-4" />
-        <h2 className={headline()}>{diagCommData.short_name}</h2>
+        <h2 className={headline()} data-testid="diag-comm-container-name">
+          {diagCommData.short_name}
+        </h2>
 
         <ResetPageSettingsButton page={pageId} />
 
         <Accordion
           className="min-w-4xl pt-5"
+          data-testid="diag-comm-accordion"
           itemClasses={itemClasses}
           selectedKeys={selectedKeys}
           selectionMode="multiple"
