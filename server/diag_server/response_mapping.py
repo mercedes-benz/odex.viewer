@@ -14,50 +14,81 @@ from typing import Any, cast
 import odxtools.diagcomm
 import odxtools.exceptions
 from connexion.lifecycle import ConnexionResponse
-from diag_server import const, model_utils, odx_util, response_codes
-from diag_server.globals import logger
-from diag_server.model_utils import (get_diag_data_set_perma_id, get_perma_id,
-                                     resolve_model_class_mappings,
-                                     translate_to_model)
-from diag_server.odx_util import DatabaseWithID
-from diag_server.openapi_server import models
-from diag_server.openapi_server.models import (
-    CompanyData, ContainerType, CreatedResourceReference, DiagCommCollection,
-    DiagCommDetails, DiagCommGenericInfo, DiagCommInfo, DiagCommRef,
-    DiagCommsOfVariantsOfDataSetsCollection, DiagCommWithDataSetsVariantRefs,
-    DiagLayerType, DiagnosticDataCollection, DiagnosticDataSetDescriptor,
-    DiagnosticDataSetRef, DiagnosticDataTypeCollection,
-    DiagnosticLayerContainerInfo, DiagnosticVariant,
-    DiagnosticVariantsCollection, DopBase, DopCollection,
-    DopsOfVariantsOfDataSetsCollection, DopWithDataSetsVariantRefs,
-    DopWithOriginLayerInfo, DtcCollection, DtcsOfVariantsOfDataSetsCollection,
-    DtcWithDataSetsVariantRefs, DtcWithDopInfo, JsonProblem, Modification,
-    NamedObjectIdRef, ObjectMetadata, OdxAny, ParentRef, Revision,
-    RevisionHistory, SpecialDataGroup, StateChart, StateChartCollection,
-    StateChartMetaData, StateChartWithMetaData,
-    StateChartWithMetaDataCollection, StateTransitionWithDiagCommRefs,
-    TeamMember, UdsServiceInfo, VariantObjectRef, VariantPatternInner)
-from diag_server.response_codes import api_jsonifier
-from odxtools.basevariantpattern import \
-    BaseVariantPattern as OdxToolsBaseVariantPattern
-from odxtools.diaglayercontainer import \
-    DiagLayerContainer as OdxToolsDiagLayerContainer
+from odxtools.basevariantpattern import BaseVariantPattern as OdxToolsBaseVariantPattern
+from odxtools.diaglayercontainer import DiagLayerContainer as OdxToolsDiagLayerContainer
 from odxtools.diaglayers.basevariant import BaseVariant as OdxToolsBaseVariant
 from odxtools.diaglayers.diaglayer import DiagLayer as OdxToolsDiagLayer
-from odxtools.diaglayers.ecushareddata import \
-    EcuSharedData as OdxToolsEcuSharedData
+from odxtools.diaglayers.ecushareddata import EcuSharedData as OdxToolsEcuSharedData
 from odxtools.diaglayers.ecuvariant import EcuVariant as OdxToolsEcuVariant
-from odxtools.diagnostictroublecode import \
-    DiagnosticTroubleCode as OdxToolsDiagnosticTroubleCode
+from odxtools.diagnostictroublecode import DiagnosticTroubleCode as OdxToolsDiagnosticTroubleCode
 from odxtools.diagservice import DiagService as OdxToolsDiagService
 from odxtools.dopbase import DopBase as OdxToolsDopBase
 from odxtools.dtcdop import DtcDop as OdxToolsDtcDop
-from odxtools.ecuvariantpattern import \
-    EcuVariantPattern as OdxToolsEcuVariantPattern
+from odxtools.ecuvariantpattern import EcuVariantPattern as OdxToolsEcuVariantPattern
 from odxtools.odxlink import resolve_snref
 from odxtools.parameters.parameter import Parameter as OdxToolsParameter
 from odxtools.singleecujob import SingleEcuJob as OdxToolsSingleEcuJob
 from werkzeug.datastructures import FileStorage
+
+from diag_server import const, model_utils, odx_util, response_codes
+from diag_server.globals import logger
+from diag_server.model_utils import (
+    get_diag_data_set_perma_id,
+    get_perma_id,
+    resolve_model_class_mappings,
+    translate_to_model,
+)
+from diag_server.odx_util import DatabaseWithID
+from diag_server.openapi_server import models
+from diag_server.openapi_server.models import (
+    CompanyData,
+    ContainerType,
+    CreatedResourceReference,
+    DiagCommCollection,
+    DiagCommDetails,
+    DiagCommGenericInfo,
+    DiagCommInfo,
+    DiagCommRef,
+    DiagCommsOfVariantsOfDataSetsCollection,
+    DiagCommWithDataSetsVariantRefs,
+    DiagLayerType,
+    DiagnosticDataCollection,
+    DiagnosticDataSetDescriptor,
+    DiagnosticDataSetRef,
+    DiagnosticDataTypeCollection,
+    DiagnosticLayerContainerInfo,
+    DiagnosticVariant,
+    DiagnosticVariantsCollection,
+    DopBase,
+    DopCollection,
+    DopsOfVariantsOfDataSetsCollection,
+    DopWithDataSetsVariantRefs,
+    DopWithOriginLayerInfo,
+    DtcCollection,
+    DtcsOfVariantsOfDataSetsCollection,
+    DtcWithDataSetsVariantRefs,
+    DtcWithDopInfo,
+    JsonProblem,
+    Modification,
+    NamedObjectIdRef,
+    ObjectMetadata,
+    OdxAny,
+    ParentRef,
+    Revision,
+    RevisionHistory,
+    SpecialDataGroup,
+    StateChart,
+    StateChartCollection,
+    StateChartMetaData,
+    StateChartWithMetaData,
+    StateChartWithMetaDataCollection,
+    StateTransitionWithDiagCommRefs,
+    TeamMember,
+    UdsServiceInfo,
+    VariantObjectRef,
+    VariantPatternInner,
+)
+from diag_server.response_codes import api_jsonifier
 
 # Maps the diagnostic data types with the uploaded data
 diag_data_type_descriptor_map: dict[
