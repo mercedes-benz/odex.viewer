@@ -188,7 +188,6 @@ export function DopsVariantComponent({
     'short_name',
     'class_name',
     'compu_method',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -1638,7 +1637,6 @@ export function DataObjectPropsOverviewComponent({
     'short_name',
     'class_name',
     'compu_method',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(

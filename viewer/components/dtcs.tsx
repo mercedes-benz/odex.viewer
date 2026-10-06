@@ -187,7 +187,6 @@ export function DtcsVariantComponent({
     'display_trouble_code',
     'text',
     'level',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -801,7 +800,6 @@ export function DiagTroubleCodesOverviewComponent({
     'display_trouble_code',
     'text',
     'level',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(

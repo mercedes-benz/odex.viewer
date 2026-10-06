@@ -209,7 +209,7 @@ export function TableFilterObjectCollectionDropdown<Type extends object>({
     idLabelMappings.entries().map((value) => {
       return { id: value[0], label: value[1] }
     })
-  )
+  ).sort((a, b) => a.label.localeCompare(b.label))
 
   return (
     <Dropdown>
@@ -620,7 +620,7 @@ export function TableFilterObjectCollectionWithExtractorFuncDropdown<
     idLabelMappings.entries().map((value) => {
       return { id: value[0], label: value[1] }
     })
-  )
+  ).sort((a, b) => a.label.localeCompare(b.label))
 
   return (
     <Dropdown>

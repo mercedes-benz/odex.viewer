@@ -18,13 +18,12 @@ import {
 import { useAsyncList } from '@react-stately/data'
 import React from 'react'
 
-import client, {
-  DiagnosticDataSetDescriptor,
+import {
   DiagComm,
   DiagCommDetails,
   DiagCommGenericInfo,
   DiagCommInfo,
-  DiagCommsOfVariantsOfDataSetsCollection,
+  DiagnosticDataSetDescriptor,
   DiagnosticVariant,
   isDiagService,
   useQuery,
@@ -39,9 +38,9 @@ import {
   DiagCommTypeChip,
   DiagnosticClassChip,
   FunctionalClassChip,
-  TransmissionModeChip,
   NextPageButton,
   PreviousPageButton,
+  TransmissionModeChip,
 } from '@/components/commons'
 import {
   TableColumnDropdown,
@@ -52,9 +51,9 @@ import {
   TableFilterObjectDropdown,
 } from '@/components/custom-dropdowns'
 import { SearchIcon } from '@/components/icons'
+import { useSelectionWithIndexedDB } from '@/storage/settings'
 import { ColumnDefinition } from '@/types'
 import { getHexRepresentation, sortItemsBySortDescriptor } from '@/utils/utils'
-import { useSelectionWithIndexedDB } from '@/storage/settings'
 
 export function DiagCommMetadata({
   diagCommData,
@@ -256,7 +255,6 @@ export function DiagComms({
     'short_name',
     'semantic',
     'comm_type',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -321,63 +319,35 @@ export function DiagComms({
   React.useEffect(() => {
     if (diag_comms) {
       diagComms.reload()
-      resolveFunctionalClassMappings(diag_comms.items)
+
+      const functionalClasses = new Map<string, string>()
+
+      if (diag_comms.items && diag_comms.items.length > 0) {
+        // Resolve all distinct functional classes from the list of diag_comms items
+        diag_comms.items.forEach(({ functional_class_refs }) => {
+          if (functional_class_refs && functional_class_refs.length > 0) {
+            functional_class_refs.forEach(
+              ({ resolved_object_perma_id, resolved_object_short_name }) =>
+                functionalClasses.set(
+                  resolved_object_perma_id
+                    ? resolved_object_perma_id
+                    : 'unresolved',
+                  resolved_object_short_name
+                    ? resolved_object_short_name
+                    : 'UNKNOWN'
+                )
+            )
+          }
+        })
+      }
+
+      setFunctionalClassMap(functionalClasses)
     }
   }, [diag_comms])
 
   const [functionalClassMap, setFunctionalClassMap] = React.useState<
     Map<string, string>
   >(new Map<string, string>())
-
-  const resolveFunctionalClassMappings = (diagComms: DiagComm[]) => {
-    if (diagComms) {
-      const functional_class_ids = new Set<string>(
-        diagComms.flatMap(({ functional_class_refs }) =>
-          functional_class_refs
-            ? functional_class_refs.flatMap(({ resolved_object_perma_id }) =>
-                resolved_object_perma_id
-                  ? resolved_object_perma_id
-                  : 'unresolved'
-              )
-            : []
-        )
-      )
-
-      const respPromises = Array.from(functional_class_ids).map(
-        (func_class_id) => {
-          return client.GET(
-            '/diagnostic-data-sets/{diag-data-set-id}/objects/{perma-id}',
-            {
-              params: {
-                path: {
-                  'diag-data-set-id': containerId,
-                  'perma-id': func_class_id,
-                },
-              },
-            }
-          )
-        }
-      )
-
-      const results = Promise.all(respPromises)
-
-      results.then((responses) => {
-        const mappingResult = new Map<string, string>(functionalClassMap)
-
-        for (const response of responses) {
-          const func_class_name = response.data?.short_name
-          const func_class_id = response.response.url.split('/').pop()
-
-          mappingResult.set(
-            func_class_id ? func_class_id : 'unresolved',
-            func_class_name ? func_class_name : 'UNKNOWN'
-          )
-        }
-
-        setFunctionalClassMap(mappingResult)
-      })
-    }
-  }
 
   // Introduce all state variables for searching and filtering the diag_comms
   const [searchValue, setSearchValue] = React.useState('')
@@ -548,14 +518,14 @@ export function DiagComms({
     {
       label: 'FUNCTIONAL_CLASSES',
       key: 'functional_class_refs',
-      sortable: true,
+      sortable: false,
       filter: (
         <TableFilterObjectCollectionDropdown<DiagComm>
           filterItems={diagComms}
           filterKey="functional_class_refs"
           filterLabel="FUNCTIONAL_CLASSES"
           idLabelMappings={functionalClassMap}
-          objectPropertyName="resolved_object_id"
+          objectPropertyName="resolved_object_perma_id"
           selectedFilters={selectedFunctClasses}
           selectedFiltersHandler={setSelectedFunctClasses}
         />
@@ -1050,7 +1020,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     'short_name',
     'semantic',
     'comm_type',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -1085,6 +1054,14 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       },
     },
     { keepPreviousData: true }
+  )
+
+  const [functionalClassMap, setFunctionalClassMap] = React.useState<
+    Map<string, string>
+  >(new Map<string, string>())
+
+  const [variantMap, setVariantMap] = React.useState<Map<string, string>>(
+    new Map<string, string>()
   )
 
   const diagCollection = useAsyncList({
@@ -1144,86 +1121,52 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     if (data_collection !== undefined) {
       diagCollection.reload()
 
-      if (
-        data_collection.diag_comms !== undefined &&
-        data_collection.diag_comms.length > 0
-      ) {
-        resolveFunctionalClassMappings(
-          data_collection.diag_comms
-            .map((entry) => entry.diagComm)
-            .filter((entry) => entry !== undefined)
-        )
-        resolveVariantMappings(data_collection)
-      }
-    }
-  }, [data_collection])
+      const functionalClasses = new Map<string, string>()
 
-  const [functionalClassMap, setFunctionalClassMap] = React.useState<
-    Map<string, string>
-  >(new Map<string, string>())
+      // Resolve all distinct functional classes from the list of diag_comms items
+      if (data_collection.diag_comms && data_collection.diag_comms.length > 0) {
+        const diagComms = data_collection.diag_comms
+          .map((entry) => entry.diagComm)
+          .filter((entry) => entry !== undefined)
 
-  const resolveFunctionalClassMappings = (diagComms: DiagCommGenericInfo[]) => {
-    if (diagComms && diagComms) {
-      const functional_class_ids = new Set<number>(
-        diagComms.flatMap(({ functional_class_refs }) =>
-          functional_class_refs
-            ? functional_class_refs.flatMap(
-                ({ resolved_object_ephemeral_id }) =>
+        diagComms.forEach(({ functional_class_refs }) => {
+          if (functional_class_refs && functional_class_refs.length > 0) {
+            functional_class_refs.forEach(
+              ({ resolved_object_ephemeral_id, resolved_object_short_name }) =>
+                functionalClasses.set(
                   resolved_object_ephemeral_id
-                    ? resolved_object_ephemeral_id
-                    : 0
-              )
-            : []
-        )
-      )
+                    ? resolved_object_ephemeral_id.toString()
+                    : 'unresolved',
+                  resolved_object_short_name
+                    ? resolved_object_short_name
+                    : 'UNKNOWN'
+                )
+            )
+          }
+        })
 
-      const respPromises = Array.from(functional_class_ids).map(
-        (func_class_id) => {
-          return client.GET('/objects/{ephemeral-id}', {
-            params: {
-              path: { 'ephemeral-id': func_class_id },
-            },
-          })
-        }
-      )
+        setFunctionalClassMap(functionalClasses)
+      }
 
-      const results = Promise.all(respPromises)
+      const resolveVariantMappings = () => {
+        const mappingResult = new Map<string, string>()
 
-      results.then((responses) => {
-        const mappingResult = new Map<string, string>(functionalClassMap)
-
-        for (const response of responses) {
-          const func_class_name = response.data?.short_name
-          const func_class_id = response.response.url.split('/').pop()
-
-          mappingResult.set(
-            func_class_id ? func_class_id : 'unresolved',
-            func_class_name ? func_class_name : 'UNKNOWN'
+        if (data_collection.variants && data_collection.variants.length > 0) {
+          data_collection.variants.forEach((variant) =>
+            mappingResult.set(variant.perma_id, variant.short_name)
           )
         }
 
-        setFunctionalClassMap(mappingResult)
-      })
+        setVariantMap((mappings) => {
+          mappings.forEach((value, key) => mappingResult.set(key, value))
+
+          return mappingResult
+        })
+      }
+
+      resolveVariantMappings()
     }
-  }
-
-  const [variantMap, setVariantMap] = React.useState<Map<string, string>>(
-    new Map<string, string>()
-  )
-
-  const resolveVariantMappings = (
-    dcvCollection: DiagCommsOfVariantsOfDataSetsCollection
-  ) => {
-    if (dcvCollection) {
-      const mappingResult = new Map<string, string>(variantMap)
-
-      dcvCollection.variants?.forEach((variant) =>
-        mappingResult.set(variant.perma_id, variant.short_name)
-      )
-
-      setVariantMap(mappingResult)
-    }
-  }
+  }, [data_collection])
 
   // Introduce all state variables for searching and filtering the diag_comms
   const [searchValue, setSearchValue] = React.useState('')
@@ -1417,16 +1360,17 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     {
       label: 'FUNCTIONAL_CLASSES',
       key: 'functional_class_refs',
-      sortable: true,
+      sortable: false,
       filter: (
         <TableFilterObjectCollectionWithExtractorFuncDropdown<DiagCommWithVariantDatasetInfo>
           filterItems={diagCollection}
           filterLabel="FUNCTIONAL_CLASSES"
           filterValueExtractorFunc={(obj) =>
-            obj.diagComm.functional_class_refs
+            obj.diagComm.functional_class_refs &&
+            obj.diagComm.functional_class_refs.length > 0
               ? obj.diagComm.functional_class_refs
                   .map((value) => {
-                    value.resolved_object_perma_id?.toString()
+                    return value.resolved_object_ephemeral_id?.toString()
                   })
                   .filter((value) => value !== undefined)
               : []
@@ -1532,8 +1476,10 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
             result = diagCommWithVarDb.diagComm.functional_class_refs
               ? diagCommWithVarDb.diagComm.functional_class_refs.some(
                   (item) => {
-                    const class_name = item.resolved_object_perma_id
-                      ? functionalClassMap.get(item.resolved_object_perma_id)
+                    const class_name = item.resolved_object_ephemeral_id
+                      ? functionalClassMap.get(
+                          item.resolved_object_ephemeral_id.toString()
+                        )
                       : undefined
 
                     return class_name
@@ -1622,9 +1568,9 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
         (diagCommWithVarDb) =>
           diagCommWithVarDb.diagComm.functional_class_refs
             ? diagCommWithVarDb.diagComm.functional_class_refs.some((item) =>
-                item.resolved_object_perma_id
+                item.resolved_object_ephemeral_id
                   ? selectedFunctClassValues.includes(
-                      item.resolved_object_perma_id.toString()
+                      item.resolved_object_ephemeral_id.toString()
                     )
                   : false
               )

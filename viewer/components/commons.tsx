@@ -163,7 +163,6 @@ export function ActionDropdown({
         <DropdownItem key="view" href={view_href}>
           View
         </DropdownItem>
-        <DropdownItem key="edit">Edit</DropdownItem>
         <DropdownItem key="delete" onPress={deleteFunc}>
           Delete
         </DropdownItem>

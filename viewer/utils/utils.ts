@@ -68,7 +68,7 @@ export function sortItemsBySortDescriptor<T extends object>(
 ): number {
   const first = String(getKeyValue(a, sortDescriptor.column) || '')
   const second = String(getKeyValue(b, sortDescriptor.column) || '')
-  let cmp = first.localeCompare(second)
+  let cmp = first.localeCompare(second, undefined, { numeric: true })
 
   if (sortDescriptor.direction === 'descending') {
     cmp *= -1
@@ -84,7 +84,7 @@ export function sortItemsByNestedSortDescriptor<T extends object>(
 ): number {
   const first = String(getNestedKeyValue(a, sortDescriptor.column) || '')
   const second = String(getNestedKeyValue(b, sortDescriptor.column) || '')
-  let cmp = first.localeCompare(second)
+  let cmp = first.localeCompare(second, undefined, { numeric: true })
 
   if (sortDescriptor.direction === 'descending') {
     cmp *= -1
@@ -117,7 +117,7 @@ export function sortItemsWithExtractFuncBySortDescriptor<T extends object>(
   let cmp = 1
 
   if (first !== undefined && second !== undefined) {
-    cmp = first.localeCompare(second)
+    cmp = first.localeCompare(second, undefined, { numeric: true })
   }
 
   if (sortDescriptor.direction === 'descending') {
