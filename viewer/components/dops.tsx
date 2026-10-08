@@ -4,7 +4,6 @@
 import { Card, CardBody } from '@heroui/card'
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -57,8 +56,6 @@ import {
   AddNewButton,
   DescriptionComponent,
   DopTypeChip,
-  NextPageButton,
-  PreviousPageButton,
   DiagCodedTypePopoverComponent,
   OdxLinkPopoverComponent,
   PhysicalTypePopoverComponent,
@@ -317,17 +314,6 @@ export function DopsVariantComponent({
 
     return arr
   }, [selectedDiagCodedTypes])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedCompuMethods,
-    selectedDiagCodedTypes,
-    selectedOriginLayers,
-    selectedPhysicalTypes,
-    selectedTypes,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: DopColumnDefinition[] = [
@@ -1132,18 +1118,8 @@ export function DopsVariantComponent({
     selectedPhyscialTypeValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (dopWithLayerInfo: DopUnionTypeWithLayerInfo, columnKey: React.Key) => {
@@ -1450,30 +1426,9 @@ export function DopsVariantComponent({
     [dopCollection]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -1481,7 +1436,6 @@ export function DopsVariantComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -1513,18 +1467,6 @@ export function DopsVariantComponent({
             {filteredItems.length} of total {dopCollection.items.length} data
             object properties
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -1532,33 +1474,9 @@ export function DopsVariantComponent({
     searchValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     filteredItems,
     dopCollection,
   ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data_collection)
@@ -1569,10 +1487,8 @@ export function DopsVariantComponent({
       isHeaderSticky
       isStriped
       aria-label="Data object property table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       selectedKeys={selectedKeys}
       selectionMode="none"
@@ -1607,7 +1523,7 @@ export function DopsVariantComponent({
       <TableBody
         emptyContent={'No DOPs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (
@@ -1820,18 +1736,6 @@ export function DataObjectPropsOverviewComponent({
 
     return arr
   }, [selectedDiagCodedTypes])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedCompuMethods,
-    selectedDiagCodedTypes,
-    selectedOriginLayers,
-    selectedPhysicalTypes,
-    selectedTypes,
-    selectedUsedInVariants,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: DopColumnDefinition[] = [
@@ -2691,18 +2595,8 @@ export function DataObjectPropsOverviewComponent({
     selectedPhyscialTypeValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (dopWithVarDb: DopWithVariantDatasetInfo, columnKey: React.Key) => {
@@ -3028,30 +2922,9 @@ export function DataObjectPropsOverviewComponent({
     [dopCollection]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -3059,7 +2932,6 @@ export function DataObjectPropsOverviewComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -3091,18 +2963,6 @@ export function DataObjectPropsOverviewComponent({
             {filteredItems.length} of total {dopCollection.items.length} data
             object properties
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -3110,33 +2970,9 @@ export function DataObjectPropsOverviewComponent({
     searchValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     filteredItems,
     dopCollection,
   ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data_collection)
@@ -3147,10 +2983,8 @@ export function DataObjectPropsOverviewComponent({
       isHeaderSticky
       isStriped
       aria-label="Data object property table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       selectedKeys={selectedKeys}
       selectionMode="none"
@@ -3185,7 +3019,7 @@ export function DataObjectPropsOverviewComponent({
       <TableBody
         emptyContent={'No DOPs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (

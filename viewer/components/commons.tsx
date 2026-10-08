@@ -86,34 +86,6 @@ import { SpecialDataGroupsComponent } from '@/components/specialdatagroups'
 import { DiagnosticCommTargetObjectIds } from '@/types/index'
 import { cleanupHtmlContent, constrainTextByLength } from '@/utils/utils'
 
-export function PreviousPageButton({
-  isDisabled,
-  onPress,
-}: {
-  isDisabled: boolean
-  onPress: (e: PressEvent) => void
-}) {
-  return (
-    <Button isDisabled={isDisabled} size="md" variant="flat" onPress={onPress}>
-      Previous
-    </Button>
-  )
-}
-
-export function NextPageButton({
-  isDisabled,
-  onPress,
-}: {
-  isDisabled: boolean
-  onPress: (e: PressEvent) => void
-}) {
-  return (
-    <Button isDisabled={isDisabled} size="md" variant="flat" onPress={onPress}>
-      Next
-    </Button>
-  )
-}
-
 export function AddNewButton() {
   return (
     <Button color="primary" endContent={<PlusIcon />}>

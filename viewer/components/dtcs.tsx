@@ -4,7 +4,6 @@
 import { Card, CardBody } from '@heroui/card'
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -31,8 +30,6 @@ import {
   AddNewButton,
   DescriptionComponent,
   DtcLevelChip,
-  NextPageButton,
-  PreviousPageButton,
 } from '@/components/commons'
 import {
   TableColumnDropdown,
@@ -285,11 +282,6 @@ export function DtcsVariantComponent({
     return arr
   }, [selectedOriginLayers])
 
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [selectedLevels, selectedOriginDtcDop, selectedOriginLayers])
-
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
     { label: 'PERMA_ID', key: 'perma_id', sortable: true },
@@ -512,18 +504,8 @@ export function DtcsVariantComponent({
     selectedOriginLayerValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (dtc: DtcWithDopInfo, columnKey: React.Key) => {
@@ -612,30 +594,9 @@ export function DtcsVariantComponent({
     [dtcs]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -643,7 +604,6 @@ export function DtcsVariantComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -675,52 +635,10 @@ export function DtcsVariantComponent({
             {filteredItems.length} of total {dtcs.items.length} diagnostic
             trouble codes
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
-  }, [
-    searchValue,
-    visibleColumns,
-    onSearchChange,
-    onRowsPerPageChange,
-    filteredItems,
-    dtcs,
-  ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
+  }, [searchValue, visibleColumns, onSearchChange, filteredItems, dtcs])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !dtcs) return <CircularProgress aria-label="Loading..." />
@@ -730,10 +648,8 @@ export function DtcsVariantComponent({
       isHeaderSticky
       isStriped
       aria-label="Diagnostic trouble codes table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       selectedKeys={selectedKeys}
       selectionMode="none"
@@ -768,7 +684,7 @@ export function DtcsVariantComponent({
       <TableBody
         emptyContent={'No DTCs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (
@@ -951,16 +867,6 @@ export function DiagTroubleCodesOverviewComponent({
 
     return arr
   }, [selectedUsedInVariants])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedLevels,
-    selectedOriginDtcDop,
-    selectedOriginLayers,
-    selectedUsedInVariants,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
@@ -1256,18 +1162,8 @@ export function DiagTroubleCodesOverviewComponent({
     selectedUsedInVariantValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (dtcWithVarDb: DtcWithVariantDatasetInfo, columnKey: React.Key) => {
@@ -1377,30 +1273,9 @@ export function DiagTroubleCodesOverviewComponent({
     [dtcCollection]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -1408,7 +1283,6 @@ export function DiagTroubleCodesOverviewComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -1440,18 +1314,6 @@ export function DiagTroubleCodesOverviewComponent({
             {filteredItems.length} of total {dtcCollection.items.length}{' '}
             diagnostic trouble codes
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -1459,33 +1321,9 @@ export function DiagTroubleCodesOverviewComponent({
     searchValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     filteredItems,
     dtcCollection,
   ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data_collection)
@@ -1496,10 +1334,8 @@ export function DiagTroubleCodesOverviewComponent({
       isHeaderSticky
       isStriped
       aria-label="Diagnostic trouble code table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       selectedKeys={selectedKeys}
       selectionMode="none"
@@ -1534,7 +1370,7 @@ export function DiagTroubleCodesOverviewComponent({
       <TableBody
         emptyContent={'No DTCs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (

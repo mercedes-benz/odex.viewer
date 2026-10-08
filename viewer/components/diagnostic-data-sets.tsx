@@ -11,7 +11,6 @@ import {
 } from '@heroui/dropdown'
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -27,11 +26,7 @@ import React from 'react'
 
 import client, { DiagnosticDataSetDescriptor, useQuery } from '@/api/api-hooks'
 import ApiError from '@/components/api-error'
-import {
-  ActionDropdown,
-  NextPageButton,
-  PreviousPageButton,
-} from '@/components/commons'
+import { ActionDropdown } from '@/components/commons'
 import { ChevronDownIcon, SearchIcon, TrashIcon } from '@/components/icons'
 import { useSelectionWithIndexedDB } from '@/storage/settings'
 
@@ -76,13 +71,10 @@ export default function DiagnosticDataSetsComponent({
     INITIAL_VISIBLE_COLUMNS
   )
 
-  const [rowsPerPage, setRowsPerPage] = React.useState(5)
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
     column: 'file_name',
     direction: 'ascending',
   })
-
-  const [page, setPage] = React.useState(1)
 
   const hasSearchFilter = Boolean(filterValue)
 
@@ -110,17 +102,8 @@ export default function DiagnosticDataSetsComponent({
     return filteredFiles
   }, [diagDataSets, filterValue])
 
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
-
   const sortedItems = React.useMemo(() => {
-    return [...items].sort(
+    return [...filteredItems].sort(
       (a: DiagnosticDataSetDescriptor, b: DiagnosticDataSetDescriptor) => {
         const first = a[
           sortDescriptor.column as keyof DiagnosticDataSetDescriptor
@@ -133,7 +116,7 @@ export default function DiagnosticDataSetsComponent({
         return sortDescriptor.direction === 'descending' ? -cmp : cmp
       }
     )
-  }, [sortDescriptor, items])
+  }, [sortDescriptor, filteredItems])
 
   const renderCell = React.useCallback(
     (dSet: DiagnosticDataSetDescriptor, columnKey: React.Key) => {
@@ -185,30 +168,9 @@ export default function DiagnosticDataSetsComponent({
     []
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setFilterValue(value)
-      setPage(1)
     } else {
       setFilterValue('')
     }
@@ -216,7 +178,6 @@ export default function DiagnosticDataSetsComponent({
 
   const onClear = React.useCallback(() => {
     setFilterValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -297,17 +258,6 @@ export default function DiagnosticDataSetsComponent({
         </div>
         <div className="flex justify-between items-center">
           <span className="text-small">Total {diagDataSets.length} files</span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="15">15</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -315,7 +265,6 @@ export default function DiagnosticDataSetsComponent({
     filterValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     diagDataSets.length,
     hasSearchFilter,
   ])
@@ -328,25 +277,9 @@ export default function DiagnosticDataSetsComponent({
             ? 'All items selected'
             : `${selectedKeys.size} of ${filteredItems.length} selected`}
         </span>
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
       </div>
     )
-  }, [selectedKeys, items.length, page, pages, hasSearchFilter])
+  }, [selectedKeys, filteredItems.length])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data) return <CircularProgress aria-label="Loading..." />
@@ -359,7 +292,7 @@ export default function DiagnosticDataSetsComponent({
       bottomContent={bottomContent}
       bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px]',
+        wrapper: 'max-h-[min(500px,60vh)] overflow-y-auto',
       }}
       id="diag-data-set-table"
       selectedKeys={selectedKeys}

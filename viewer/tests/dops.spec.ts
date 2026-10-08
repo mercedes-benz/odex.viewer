@@ -14,7 +14,7 @@ test('Check DOPs page - view all data object properties', async ({ page }) => {
 
   await expect(dopTable).toBeVisible()
   await expect(dopTable.getByRole('row').nth(1)).toBeVisible()
-  expect(await dopTable.getByRole('row').all()).toHaveLength(26)
+  expect(await dopTable.getByRole('row').all()).toHaveLength(27)
 })
 
 test('Check DOPs page - view specific data object property', async ({

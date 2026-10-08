@@ -4,7 +4,6 @@
 import { Card, CardBody } from '@heroui/card'
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -38,8 +37,6 @@ import {
   DiagCommTypeChip,
   DiagnosticClassChip,
   FunctionalClassChip,
-  NextPageButton,
-  PreviousPageButton,
   TransmissionModeChip,
 } from '@/components/commons'
 import {
@@ -411,19 +408,6 @@ export function DiagComms({
     return arr
   }, [selectedFunctClasses])
 
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedSemantics,
-    selectedAddressings,
-    selectedCommTypes,
-    selectedDiagClasses,
-    selectedFunctClasses,
-    selectedOriginLayers,
-    selectedUdsServices,
-  ])
-
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
     { label: 'OBJECT_ID', key: 'object_id', sortable: true },
@@ -727,18 +711,8 @@ export function DiagComms({
     selectedAddressingValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (diagComm: DiagComm, columnKey: React.Key) => {
@@ -836,30 +810,9 @@ export function DiagComms({
     [diagComms, functionalClassMap]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -867,7 +820,6 @@ export function DiagComms({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -899,52 +851,10 @@ export function DiagComms({
             {filteredItems.length} of total {diagComms.items.length} diagnostic
             communications
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
-  }, [
-    searchValue,
-    visibleColumns,
-    onSearchChange,
-    onRowsPerPageChange,
-    filteredItems,
-    diagComms,
-  ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
+  }, [searchValue, visibleColumns, onSearchChange, filteredItems, diagComms])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !diag_comms)
@@ -955,10 +865,8 @@ export function DiagComms({
       isHeaderSticky
       isStriped
       aria-label="Diagnostic communications table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       data-testid="diag-comm-table"
       selectedKeys={selectedKeys}
@@ -994,7 +902,7 @@ export function DiagComms({
       <TableBody
         emptyContent={'No DIAG-COMMs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (
@@ -1229,19 +1137,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
 
     return arr
   }, [selectedUsedInVariants])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedSemantics,
-    selectedUsedInVariants,
-    selectedCommTypes,
-    selectedDiagClasses,
-    selectedFunctClasses,
-    selectedOriginLayers,
-    selectedUdsServices,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
@@ -1615,18 +1510,8 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     selectedUsedInVariantValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (
@@ -1758,30 +1643,9 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     [diagCollection, functionalClassMap]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -1789,7 +1653,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -1821,18 +1684,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
             {filteredItems.length} of total {diagCollection.items.length}{' '}
             diagnostic communications
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -1840,33 +1691,9 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     searchValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     filteredItems,
     diagCollection,
   ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data_collection)
@@ -1877,10 +1704,8 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       isHeaderSticky
       isStriped
       aria-label="Diagnostic communications table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       data-testid="diag-comm-table"
       selectedKeys={selectedKeys}
@@ -1916,7 +1741,7 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       <TableBody
         emptyContent={'No DIAG-COMMs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (

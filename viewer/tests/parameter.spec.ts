@@ -51,10 +51,10 @@ test('Check parameter page - column selection on parameters table', async ({
   await expect(
     page.getByTestId('parameters-columns-dropdown-entry').first()
   ).toBeVisible()
-  // The parameters table has 23 total columns
+  // The parameters table has 24 total columns
   expect(
     await page.getByTestId('parameters-columns-dropdown-entry').all()
-  ).toHaveLength(23)
+  ).toHaveLength(24)
 })
 
 test('Check parameter page - TYPE filter', async ({ page }) => {
