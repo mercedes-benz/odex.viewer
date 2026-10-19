@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 'use client'
 
-import { Accordion, AccordionItem } from '@heroui/accordion'
 import clsx from 'clsx'
 import { useSearchParams } from 'next/navigation'
 import React from 'react'
 
+import { Accordion, AccordionItem } from '@/components/accordion'
 import client, { DiagnosticVariant, ObjectMetadata } from '@/api/api-hooks'
 import {
   DefaultBreadcrumbs,

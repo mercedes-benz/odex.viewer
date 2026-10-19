@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 'use client'
 
-import { Accordion, AccordionItem } from '@heroui/accordion'
 import { CircularProgress } from '@heroui/progress'
 import {
   Table,
@@ -12,6 +11,7 @@ import {
   TableRow,
 } from '@heroui/table'
 
+import { Accordion, AccordionItem } from '@/components/accordion'
 import {
   AdditionalAudience,
   AudienceResolved,

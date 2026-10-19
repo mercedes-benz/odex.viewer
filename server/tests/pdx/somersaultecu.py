@@ -33,7 +33,8 @@ from odxtools.compumethods.limit import IntervalType, Limit
 from odxtools.compumethods.linearcompumethod import LinearCompuMethod
 from odxtools.compumethods.ratfunccompumethod import RatFuncCompuMethod
 from odxtools.compumethods.scalelinearcompumethod import ScaleLinearCompuMethod
-from odxtools.compumethods.scaleratfunccompumethod import ScaleRatFuncCompuMethod
+from odxtools.compumethods.scaleratfunccompumethod import \
+    ScaleRatFuncCompuMethod
 from odxtools.compumethods.tabintpcompumethod import TabIntpCompuMethod
 from odxtools.compumethods.texttablecompumethod import TexttableCompuMethod
 from odxtools.database import Database
@@ -52,6 +53,7 @@ from odxtools.diagnostictroublecode import DiagnosticTroubleCode
 from odxtools.diagservice import DiagService
 from odxtools.docrevision import DocRevision
 from odxtools.dtcdop import DtcDop
+from odxtools.endofpdufield import EndOfPduField
 from odxtools.exceptions import odxrequire
 from odxtools.functionalclass import FunctionalClass
 from odxtools.modification import Modification
@@ -60,8 +62,10 @@ from odxtools.odxdoccontext import OdxDocContext
 from odxtools.odxlink import DocType, OdxDocFragment, OdxLinkId, OdxLinkRef
 from odxtools.odxtypes import DataType
 from odxtools.parameters.codedconstparameter import CodedConstParameter
-from odxtools.parameters.matchingrequestparameter import MatchingRequestParameter
+from odxtools.parameters.matchingrequestparameter import \
+    MatchingRequestParameter
 from odxtools.parameters.nrcconstparameter import NrcConstParameter
+from odxtools.parameters.reservedparameter import ReservedParameter
 from odxtools.parameters.tablekeyparameter import TableKeyParameter
 from odxtools.parameters.tablestructparameter import TableStructParameter
 from odxtools.parameters.valueparameter import ValueParameter
@@ -317,6 +321,10 @@ somersault_diagcodedtypes = {
     "uint16": StandardLengthType(
         base_data_type=DataType.A_UINT32,
         bit_length=16,
+    ),
+    "uint24": StandardLengthType(
+        base_data_type=DataType.A_UINT32,
+        bit_length=24,
     ),
     "float32": StandardLengthType(
         base_data_type=DataType.A_FLOAT32,
@@ -963,7 +971,7 @@ somersault_dtc_dops = {
     "dtc_dop_all": DtcDop(
         short_name="dtc_dop_all",
         odx_id=OdxLinkId("somersault.DTC_DOP.dtc_dop_all", doc_frags),
-        diag_coded_type=somersault_diagcodedtypes["uint16"],
+        diag_coded_type=somersault_diagcodedtypes["uint24"],
         physical_type=PhysicalType(base_data_type=DataType.A_UINT32),
         compu_method=IdenticalCompuMethod(
             category=CompuCategory.IDENTICAL,
@@ -974,11 +982,124 @@ somersault_dtc_dops = {
     ),
 }
 
+dtc_status_bits = (
+    ("TestFailed", True),
+    ("TestFailedThisOperationCycle", False),
+    ("PendingDTC", False),
+    ("ConfirmedDTC", True),
+    ("TestNotCompletedSinceLastClear", True),
+    ("TestFailedSinceLastClear", True),
+    ("TestNotCompletedThisOperationCycle", False),
+    ("WarningIndicatorRequested", False),
+)
+somersault_dops.update(
+    {
+        name: DataObjectProperty(
+            odx_id=OdxLinkId(f"somersault.DOP.{name}", doc_frags),
+            short_name=name,
+            diag_coded_type=somersault_diagcodedtypes["flag"],
+            physical_type=PhysicalType(base_data_type=DataType.A_UNICODE2STRING),
+            compu_method=somersault_compumethods["boolean"],
+        )
+        for name, _ in dtc_status_bits
+    }
+)
+somersault_dtc_status_structure = Structure(
+    short_name="DTCAndStatusRecord",
+    odx_id=OdxLinkId("somersault.struct.DTCAndStatusRecord", doc_frags),
+    byte_size=4,
+    parameters=NamedItemList(
+        [
+            ValueParameter(
+                short_name="DTCRecord",
+                semantic="DATA",
+                byte_position=0,
+                dop_ref=OdxLinkRef.from_id(somersault_dtc_dops["dtc_dop_all"].odx_id),
+            ),
+        ]
+        + [
+            ValueParameter(
+                short_name=name,
+                semantic="DATA",
+                byte_position=3,
+                bit_position=bit,
+                dop_ref=OdxLinkRef.from_id(somersault_dops[name].odx_id),
+            )
+            if supported
+            else ReservedParameter(
+                short_name=name,
+                byte_position=3,
+                bit_position=bit,
+                bit_length=1,
+            )
+            for bit, (name, supported) in enumerate(dtc_status_bits)
+        ]
+    ),
+)
+somersault_end_of_pdu_fields = {
+    "DTCAndStatusRecords": EndOfPduField(
+        short_name="DTCAndStatusRecords",
+        odx_id=OdxLinkId("somersault.DOP.DTCAndStatusRecords", doc_frags),
+        structure_ref=OdxLinkRef.from_id(somersault_dtc_status_structure.odx_id),
+        min_number_of_items=0,
+    ),
+}
+
 last_flip_details_table_id = OdxLinkId("somersault.table.last_flip_details", doc_frags)
 last_flip_details_table_ref = OdxLinkRef.from_id(last_flip_details_table_id)
 
 # positive responses
 somersault_positive_responses = {
+    "ReportDTCByStatusMask": Response(
+        odx_id=OdxLinkId("somersault.PR.ReportDTCByStatusMask", doc_frags),
+        short_name="PR_ReportDTCByStatusMask",
+        response_type=ResponseType.POSITIVE,
+        parameters=NamedItemList(
+            [
+                CodedConstParameter(
+                    short_name="SID_PR",
+                    semantic="SERVICE-ID",
+                    diag_coded_type=somersault_diagcodedtypes["uint8"],
+                    byte_position=0,
+                    coded_value_raw=str(0x59),
+                ),
+                CodedConstParameter(
+                    short_name="ReportDTCByStatusMask",
+                    semantic="SUBFUNCTION",
+                    diag_coded_type=somersault_diagcodedtypes["uint8"],
+                    byte_position=1,
+                    coded_value_raw=str(0x02),
+                ),
+            ]
+            + [
+                ValueParameter(
+                    short_name=name,
+                    semantic="DATA",
+                    byte_position=2,
+                    bit_position=bit,
+                    dop_ref=OdxLinkRef.from_id(somersault_dops[name].odx_id),
+                )
+                if supported
+                else ReservedParameter(
+                    short_name=name,
+                    byte_position=2,
+                    bit_position=bit,
+                    bit_length=1,
+                )
+                for bit, (name, supported) in enumerate(dtc_status_bits)
+            ]
+            + [
+                ValueParameter(
+                    short_name="DTCAndStatusRecord",
+                    semantic="DATA",
+                    byte_position=3,
+                    dop_ref=OdxLinkRef.from_id(
+                        somersault_end_of_pdu_fields["DTCAndStatusRecords"].odx_id
+                    ),
+                ),
+            ]
+        ),
+    ),
     "session": Response(
         odx_id=OdxLinkId("somersault.PR.session_start", doc_frags),
         short_name="session",
@@ -1173,6 +1294,7 @@ somersault_positive_responses = {
 }
 
 somersault_structures = {
+    "DTCAndStatusRecord": somersault_dtc_status_structure,
     "forward_flips_grudgingly_done": Structure(
         short_name="forward_flips_grudgingly_done_recall",
         odx_id=OdxLinkId("somersault.struct.recall.forward_flips_grudgingly_done", doc_frags),
@@ -1400,6 +1522,38 @@ somersault_tables = {
 
 # requests
 somersault_requests = {
+    "ReportDTCByStatusMask": Request(
+        odx_id=OdxLinkId("somersault.RQ.ReportDTCByStatusMask", doc_frags),
+        short_name="RQ_ReportDTCByStatusMask",
+        parameters=NamedItemList(
+            [
+                CodedConstParameter(
+                    short_name="SID_RQ",
+                    semantic="SERVICE-ID",
+                    diag_coded_type=somersault_diagcodedtypes["uint8"],
+                    byte_position=0,
+                    coded_value_raw=str(0x19),
+                ),
+                CodedConstParameter(
+                    short_name="ReportDTCByStatusMask",
+                    semantic="SUBFUNCTION",
+                    diag_coded_type=somersault_diagcodedtypes["uint8"],
+                    byte_position=1,
+                    coded_value_raw=str(0x02),
+                ),
+            ]
+            + [
+                ValueParameter(
+                    short_name=name,
+                    semantic="DATA",
+                    byte_position=2,
+                    bit_position=bit,
+                    dop_ref=OdxLinkRef.from_id(somersault_dops[name].odx_id),
+                )
+                for bit, (name, _) in enumerate(dtc_status_bits)
+            ]
+        ),
+    ),
     "start_session": Request(
         odx_id=OdxLinkId("somersault.RQ.start_session", doc_frags),
         short_name="start_session",
@@ -1594,6 +1748,23 @@ somersault_requests = {
 
 # services
 somersault_services = {
+    "ReportDTCByStatusMask": DiagService(
+        odx_id=OdxLinkId("somersault.service.ReportDTCByStatusMask", doc_frags),
+        short_name="ReportDTCByStatusMask",
+        long_name="Report DTC By Status Mask",
+        semantic="DEFAULT-FAULT-READ",
+        request_ref=OdxLinkRef.from_id(
+            somersault_requests["ReportDTCByStatusMask"].odx_id
+        ),
+        pos_response_refs=[
+            OdxLinkRef.from_id(
+                somersault_positive_responses["ReportDTCByStatusMask"].odx_id
+            ),
+        ],
+        neg_response_refs=[
+            OdxLinkRef.from_id(somersault_negative_responses["general"].odx_id),
+        ],
+    ),
     "start_session": DiagService(
         odx_id=OdxLinkId("somersault.service.session_start", doc_frags),
         short_name="session_start",
@@ -1905,6 +2076,7 @@ somersault_base_diag_data_dictionary_spec = DiagDataDictionarySpec(
     ),
     tables=NamedItemList(somersault_tables.values()),
     structures=NamedItemList(somersault_structures.values()),
+    end_of_pdu_fields=NamedItemList(somersault_end_of_pdu_fields.values()),
     dtc_dops=NamedItemList(somersault_dtc_dops.values()),
 )
 

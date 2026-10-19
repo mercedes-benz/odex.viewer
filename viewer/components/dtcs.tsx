@@ -19,6 +19,7 @@ import React from 'react'
 
 import {
   DiagnosticDataSetDescriptor,
+  DtcDop,
   DtcWithDopInfo,
   DtcsOfVariantsOfDataSetsCollection,
   DiagnosticVariant,
@@ -41,6 +42,102 @@ import { ColumnDefinition } from '@/types'
 import { getHexRepresentation, sortItemsBySortDescriptor } from '@/utils/utils'
 import { DiagnosticTroubleCodeTargetObjectIds } from '@/types/index'
 import { useSelectionWithIndexedDB } from '@/storage/settings'
+
+export function DtcDopDetailsTable({ dop }: { dop: DtcDop }) {
+  const [searchValue, setSearchValue] = React.useState('')
+  const query = searchValue.trim().toLowerCase()
+  const rows = (dop.dtcs ?? []).map((dtc, index) => ({
+    dtc,
+    key: dtc.ephemeral_id ?? dtc.perma_id ?? index,
+    troubleCode:
+      dtc.trouble_code === undefined
+        ? 'Not specified'
+        : `${dtc.trouble_code} [${getHexRepresentation(dtc.trouble_code) || '0x0'}]`,
+    temporary:
+      dtc.is_temporary === undefined
+        ? 'Not specified'
+        : dtc.is_temporary
+          ? 'true'
+          : 'false',
+  }))
+  const filteredRows = rows.filter(({ dtc, troubleCode, temporary }) =>
+    [
+      troubleCode,
+      dtc.display_trouble_code,
+      dtc.short_name,
+      dtc.long_name,
+      dtc.text?.text,
+      dtc.description?.text,
+      dtc.level,
+      temporary,
+    ].some((value) => value?.toString().toLowerCase().includes(query))
+  )
+
+  return (
+    <section aria-label="DTC details" className="mb-5 text-start">
+      <p className="mb-2 font-medium">Diagnostic trouble codes</p>
+      <Table
+        isHeaderSticky
+        isStriped
+        aria-label="DTC details table"
+        classNames={{
+          wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-auto',
+        }}
+        selectionMode="none"
+        topContent={
+          <div className="flex flex-col gap-2">
+            <Input
+              isClearable
+              aria-label="Search DTC details"
+              className="w-full sm:max-w-[44%]"
+              placeholder="Search in visible columns..."
+              startContent={<SearchIcon />}
+              value={searchValue}
+              onClear={() => setSearchValue('')}
+              onValueChange={setSearchValue}
+            />
+            <span className="text-small" role="status">
+              {filteredRows.length} of total {rows.length} diagnostic trouble
+              codes
+            </span>
+          </div>
+        }
+        topContentPlacement="outside"
+      >
+        <TableHeader>
+          <TableColumn>SHORT NAME</TableColumn>
+          <TableColumn>TROUBLE CODE</TableColumn>
+          <TableColumn>DISPLAY_TROUBLE_CODE</TableColumn>
+          <TableColumn>TEXT</TableColumn>
+          <TableColumn>DESCRIPTION</TableColumn>
+          <TableColumn>LEVEL</TableColumn>
+          <TableColumn>IS_TEMPORARY</TableColumn>
+        </TableHeader>
+        <TableBody emptyContent="No DTCs found">
+          {filteredRows.map(({ dtc, key, troubleCode, temporary }) => (
+            <TableRow key={key}>
+              <TableCell>{dtc.short_name}</TableCell>
+              <TableCell>{troubleCode}</TableCell>
+              <TableCell>{dtc.display_trouble_code}</TableCell>
+              <TableCell>{dtc.text?.text}</TableCell>
+              <TableCell>
+                <DescriptionComponent
+                  description={dtc.description}
+                  enableUnfolding={true}
+                  initialState="uncollapsed"
+                />
+              </TableCell>
+              <TableCell>
+                <DtcLevelChip level={dtc.level} />
+              </TableCell>
+              <TableCell>{temporary}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  )
+}
 
 export function DtcMetadataComponent({
   dtcData,
@@ -412,7 +509,10 @@ export function DtcsVariantComponent({
             ? dtc.trouble_code
                 .toString()
                 .toLowerCase()
-                .includes(searchValue.toLowerCase())
+                .includes(searchValue.toLowerCase()) ||
+              (getHexRepresentation(dtc.trouble_code) || '0x0').includes(
+                searchValue.toLowerCase()
+              )
             : false
         }
 
@@ -1024,7 +1124,10 @@ export function DiagTroubleCodesOverviewComponent({
               ? dtcWithVarDb.dtc.trouble_code
                   .toString()
                   .toLowerCase()
-                  .includes(searchValue.toLowerCase())
+                  .includes(searchValue.toLowerCase()) ||
+                (
+                  getHexRepresentation(dtcWithVarDb.dtc.trouble_code) || '0x0'
+                ).includes(searchValue.toLowerCase())
               : false
           }
 

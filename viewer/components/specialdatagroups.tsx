@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 'use client'
 
-import { Accordion, AccordionItem } from '@heroui/accordion'
 import { Button } from '@heroui/button'
 import { Selection } from '@react-types/shared'
 import parse from 'html-react-parser'
 import React from 'react'
 
+import { Accordion, AccordionItem } from '@/components/accordion'
 import {
   SpecialData,
   SpecialDataGroup,

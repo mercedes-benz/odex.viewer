@@ -73,6 +73,7 @@ import {
   TableFilterObjectCollectionWithExtractorFuncDropdown,
 } from '@/components/custom-dropdowns'
 import { SearchIcon } from '@/components/icons'
+import { DtcDopDetailsTable } from '@/components/dtcs'
 import { DopColumnDefinition } from '@/types'
 import {
   sortItemsBySortDescriptor,
@@ -3304,6 +3305,12 @@ export function DopCompactSummaryComponent({
     (dop: DopUnionType) => {
       return (
         <div>
+          {isDtcDop(dop) ? (
+            <DtcDopDetailsTable
+              key={dop.ephemeral_id ?? dop.perma_id}
+              dop={dop}
+            />
+          ) : null}
           {dop &&
           (isDataObjectPropertyDop(dop) || isDtcDop(dop)) &&
           dop.compu_method ? (

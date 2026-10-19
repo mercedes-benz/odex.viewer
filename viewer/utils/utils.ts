@@ -9,8 +9,11 @@ import { ArrayValueExtractorFunc, ValueExtractorFunc } from '@/types'
 import {
   CompuMethod,
   CompuScale,
+  DataObjectProperty,
+  DataType,
   DiagCodedTypeUnionType,
   InternalConstr,
+  isMinMaxLengthDiagCodedType,
   isStandardLengthDiagCodedType,
   Limit,
   ScaleConstrValidType,
@@ -1138,5 +1141,371 @@ export function getInternalConstraintDataForRendering(
       notAvailableValues,
       notDefinedValues,
     ],
+  }
+}
+
+export type ParameterValueBound = { value: number; exclusive: boolean }
+
+export type ParameterValueOption = {
+  value: string
+  label: string
+  internalValue?: string
+}
+
+type ParameterValueRestrictedRange = {
+  lower?: ParameterValueBound
+  upper?: ParameterValueBound
+  validity?: ScaleConstrValidType
+  label?: string
+}
+
+export type ParameterValueInputSpec =
+  | { kind: 'select'; options: ParameterValueOption[] }
+  | {
+      kind: 'number'
+      min?: ParameterValueBound
+      max?: ParameterValueBound
+      step: number | 'any'
+      isInteger: boolean
+      restrictedRanges: ParameterValueRestrictedRange[]
+    }
+  | {
+      kind: 'text'
+      dataType: DataType
+      minBytes?: number
+      maxBytes?: number
+    }
+  | { kind: 'boolean' }
+
+const INTEGER_DATA_TYPES: string[] = ['A_INT32', 'A_UINT32']
+const FLOAT_DATA_TYPES: string[] = ['A_FLOAT32', 'A_FLOAT64']
+const TEXT_DATA_TYPES: string[] = [
+  'A_ASCIISTRING',
+  'A_UNICODE2STRING',
+  'A_UTF8STRING',
+  'A_BYTEFIELD',
+]
+
+function limitToBound(
+  limit: Limit | undefined
+): ParameterValueBound | undefined {
+  if (limit === undefined || limit.interval_type === 'INFINITE')
+    return undefined
+
+  const rawValue = limit.value ?? limit.value_raw
+
+  if (rawValue === undefined || rawValue === '') return undefined
+
+  const value = Number(rawValue)
+
+  return Number.isFinite(value)
+    ? { value, exclusive: limit.interval_type === 'OPEN' }
+    : undefined
+}
+
+function getDataTypeRange(
+  dataType: string | undefined
+): [ParameterValueBound, ParameterValueBound] | undefined {
+  if (dataType === 'A_UINT32')
+    return [
+      { value: 0, exclusive: false },
+      { value: 2 ** 32 - 1, exclusive: false },
+    ]
+  if (dataType === 'A_INT32')
+    return [
+      { value: -(2 ** 31), exclusive: false },
+      { value: 2 ** 31 - 1, exclusive: false },
+    ]
+
+  return undefined
+}
+
+function hasNumericLimits(constraint: InternalConstr | undefined) {
+  return (
+    limitToBound(constraint?.lower_limit) !== undefined &&
+    limitToBound(constraint?.upper_limit) !== undefined
+  )
+}
+
+function getTexttableOptions(dop: DataObjectProperty): ParameterValueOption[] {
+  const diagCodedType = dop.diag_coded_type as
+    | DiagCodedTypeUnionType
+    | undefined
+  const compuMethodData = getCompuMethodDataForRendering(
+    dop.compu_method,
+    diagCodedType,
+    dop.internal_constr
+  )
+  const options = new Map<string, ParameterValueOption>()
+
+  compuMethodData?.scales.forEach((scale) => {
+    const text = scale.yValues[0]
+
+    if (typeof text === 'string' && !options.has(text)) {
+      options.set(text, {
+        value: text,
+        label: text,
+        internalValue:
+          scale.xValues.length > 0 ? scale.xValues.join(' – ') : undefined,
+      })
+    }
+  })
+
+  const defaultText =
+    dop.compu_method?.compu_internal_to_phys?.compu_default_value?.vt
+
+  if (defaultText !== undefined && !options.has(defaultText)) {
+    options.set(defaultText, { value: defaultText, label: defaultText })
+  }
+
+  return Array.from(options.values())
+}
+
+// The physical range is the internal value domain mapped through the compu method
+function getPhysicalRangeFromCompuMethod(
+  dop: DataObjectProperty
+): [ParameterValueBound, ParameterValueBound] | undefined {
+  const diagCodedType = dop.diag_coded_type as
+    | DiagCodedTypeUnionType
+    | undefined
+  const isSignedInternal =
+    diagCodedType?.base_data_type === 'A_INT32' ||
+    ['1C', '2C', 'SM'].includes(diagCodedType?.base_type_encoding ?? '')
+
+  // The existing helpers assume an unsigned bit_length domain if no internal constraint is given
+  if (isSignedInternal && !hasNumericLimits(dop.internal_constr)) {
+    return undefined
+  }
+
+  const compuMethodData = getCompuMethodDataForRendering(
+    dop.compu_method,
+    diagCodedType,
+    dop.internal_constr
+  )
+  const physicalValues = (compuMethodData?.scales ?? [])
+    .flatMap((scale): (number | string)[] => scale.yValues)
+    .filter(
+      (value): value is number =>
+        typeof value === 'number' && Number.isFinite(value)
+    )
+
+  if (physicalValues.length === 0) return undefined
+
+  return [
+    { value: Math.min(...physicalValues), exclusive: false },
+    { value: Math.max(...physicalValues), exclusive: false },
+  ]
+}
+
+function getByteLengthLimits(
+  diagCodedType: DiagCodedTypeUnionType | undefined
+): { minBytes?: number; maxBytes?: number } {
+  if (diagCodedType === undefined) return {}
+
+  if (
+    isStandardLengthDiagCodedType(diagCodedType) &&
+    diagCodedType.bit_length !== undefined
+  ) {
+    const bytes = Math.ceil(diagCodedType.bit_length / 8)
+
+    return { minBytes: bytes, maxBytes: bytes }
+  }
+
+  if (isMinMaxLengthDiagCodedType(diagCodedType)) {
+    return {
+      minBytes: diagCodedType.min_length,
+      maxBytes: diagCodedType.max_length,
+    }
+  }
+
+  return {}
+}
+
+export function getParameterValueInputSpec(
+  dop: DataObjectProperty
+): ParameterValueInputSpec | undefined {
+  const physicalDataType = dop.physical_type?.base_data_type as
+    | string
+    | undefined
+  const compuCategory = dop.compu_method?.category
+
+  if (compuCategory === 'TEXTTABLE') {
+    const options = getTexttableOptions(dop)
+
+    if (options.length > 0) return { kind: 'select', options }
+  }
+
+  if (physicalDataType === 'A_BOOLEAN') return { kind: 'boolean' }
+
+  if (
+    physicalDataType !== undefined &&
+    (INTEGER_DATA_TYPES.includes(physicalDataType) ||
+      FLOAT_DATA_TYPES.includes(physicalDataType))
+  ) {
+    const isInteger = INTEGER_DATA_TYPES.includes(physicalDataType)
+    const physicalLower = limitToBound(dop.physical_constr?.lower_limit)
+    const physicalUpper = limitToBound(dop.physical_constr?.upper_limit)
+    const compuRange =
+      physicalLower === undefined || physicalUpper === undefined
+        ? getPhysicalRangeFromCompuMethod(dop)
+        : undefined
+    const typeRange = getDataTypeRange(physicalDataType)
+    const precision = dop.physical_type?.precision
+
+    return {
+      kind: 'number',
+      min: physicalLower ?? compuRange?.[0] ?? typeRange?.[0],
+      max: physicalUpper ?? compuRange?.[1] ?? typeRange?.[1],
+      step: isInteger ? 1 : precision !== undefined ? 10 ** -precision : 'any',
+      isInteger,
+      restrictedRanges: (dop.physical_constr?.scale_constrs ?? [])
+        .filter((scaleConstr) => scaleConstr.validity !== 'VALID')
+        .map((scaleConstr) => ({
+          lower: limitToBound(scaleConstr.lower_limit),
+          upper: limitToBound(scaleConstr.upper_limit),
+          validity: scaleConstr.validity,
+          label: scaleConstr.short_label,
+        })),
+    }
+  }
+
+  if (
+    physicalDataType !== undefined &&
+    TEXT_DATA_TYPES.includes(physicalDataType)
+  ) {
+    // Byte lengths of the coded type only apply if the value is not transformed by the compu method
+    const lengthLimits =
+      compuCategory === undefined || compuCategory === 'IDENTICAL'
+        ? getByteLengthLimits(
+            dop.diag_coded_type as DiagCodedTypeUnionType | undefined
+          )
+        : {}
+
+    return {
+      kind: 'text',
+      dataType: physicalDataType as DataType,
+      ...lengthLimits,
+    }
+  }
+
+  return undefined
+}
+
+function isAboveLowerBound(value: number, bound: ParameterValueBound) {
+  return bound.exclusive ? value > bound.value : value >= bound.value
+}
+
+function isBelowUpperBound(value: number, bound: ParameterValueBound) {
+  return bound.exclusive ? value < bound.value : value <= bound.value
+}
+
+function getEncodedByteLength(value: string, dataType: DataType) {
+  switch (dataType as string) {
+    case 'A_UNICODE2STRING':
+      return value.length * 2
+    case 'A_UTF8STRING':
+      return new TextEncoder().encode(value).length
+    case 'A_BYTEFIELD':
+      return value.replace(/\s/g, '').length / 2
+    default:
+      return value.length
+  }
+}
+
+export function validateParameterValue(
+  spec: ParameterValueInputSpec,
+  value: string | boolean | undefined
+): string | undefined {
+  if (value === undefined || value === '' || typeof value === 'boolean') {
+    return undefined
+  }
+
+  switch (spec.kind) {
+    case 'select':
+      return spec.options.some((option) => option.value === value)
+        ? undefined
+        : 'Select one of the defined values'
+    case 'number': {
+      const numericValue = Number(value)
+
+      if (!Number.isFinite(numericValue)) return 'Enter a valid number'
+      if (spec.isInteger && !Number.isInteger(numericValue)) {
+        return 'Enter a whole number'
+      }
+      if (
+        spec.min !== undefined &&
+        !isAboveLowerBound(numericValue, spec.min)
+      ) {
+        return `Value must be ${spec.min.exclusive ? '>' : '≥'} ${spec.min.value}`
+      }
+      if (
+        spec.max !== undefined &&
+        !isBelowUpperBound(numericValue, spec.max)
+      ) {
+        return `Value must be ${spec.max.exclusive ? '<' : '≤'} ${spec.max.value}`
+      }
+
+      const restrictedRange = spec.restrictedRanges.find(
+        (range) =>
+          (range.lower === undefined ||
+            isAboveLowerBound(numericValue, range.lower)) &&
+          (range.upper === undefined ||
+            isBelowUpperBound(numericValue, range.upper))
+      )
+
+      return restrictedRange !== undefined
+        ? `Value is ${restrictedRange.validity ?? 'restricted'}${restrictedRange.label ? ` (${restrictedRange.label})` : ''}`
+        : undefined
+    }
+    case 'text': {
+      if (spec.dataType === 'A_BYTEFIELD') {
+        const hexValue = value.replace(/\s/g, '')
+
+        if (!/^([0-9a-fA-F]{2})*$/.test(hexValue)) {
+          return 'Enter hex bytes, e.g. 0A FF'
+        }
+      }
+      if (spec.dataType === 'A_ASCIISTRING' && !/^[\x00-\x7F]*$/.test(value)) {
+        return 'Only ASCII characters are allowed'
+      }
+
+      const byteLength = getEncodedByteLength(value, spec.dataType)
+
+      if (spec.maxBytes !== undefined && byteLength > spec.maxBytes) {
+        return `Value exceeds ${spec.maxBytes} bytes`
+      }
+      if (spec.minBytes !== undefined && byteLength < spec.minBytes) {
+        return `Value requires at least ${spec.minBytes} bytes`
+      }
+
+      return undefined
+    }
+    default:
+      return undefined
+  }
+}
+
+export function describeParameterValueInputSpec(
+  spec: ParameterValueInputSpec
+): string | undefined {
+  switch (spec.kind) {
+    case 'number': {
+      const lower = spec.min
+        ? `${spec.min.exclusive ? '(' : '['}${spec.min.value}`
+        : '(-∞'
+      const upper = spec.max
+        ? `${spec.max.value}${spec.max.exclusive ? ')' : ']'}`
+        : '∞)'
+
+      return spec.min || spec.max ? `${lower}, ${upper}` : undefined
+    }
+    case 'text':
+      if (spec.maxBytes === undefined) return undefined
+
+      return spec.minBytes === spec.maxBytes
+        ? `${spec.maxBytes} bytes`
+        : `${spec.minBytes ?? 0}–${spec.maxBytes} bytes`
+    default:
+      return undefined
   }
 }

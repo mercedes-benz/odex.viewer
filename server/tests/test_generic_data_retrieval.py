@@ -49,7 +49,7 @@ def test_get_diagnostic_data_sets_and_variants(diag_client, upload_pdx_data) -> 
     response_collection = json_dict_from_response(response)
     assert response.status_code == 200
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 7
+    assert len(response_collection["items"]) == 8
 
     # Get DTCs of "somersault_lazy" variant using GET /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/dtcs
     response = diag_client.get(f"{variant_endpoint}/dtcs")
@@ -63,7 +63,7 @@ def test_get_diagnostic_data_sets_and_variants(diag_client, upload_pdx_data) -> 
     response_collection = json_dict_from_response(response)
     assert response.status_code == 200
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 24
+    assert len(response_collection["items"]) == 34
 
     # Get StateCharts of "somersault_lazy" variant using GET /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/state-charts
     response = diag_client.get(f"{variant_endpoint}/state-charts")
@@ -83,7 +83,7 @@ def test_get_all_diag_comms(diag_client, upload_pdx_data) -> None:
     assert "diag_comms" in response_collection
     assert len(response_collection["diagnostic_data_sets"]) == 1
     assert len(response_collection["variants"]) == 3
-    assert len(response_collection["diag_comms"]) == 10
+    assert len(response_collection["diag_comms"]) == 11
 
 
 def test_get_all_dtcs(diag_client, upload_pdx_data) -> None:
@@ -109,4 +109,4 @@ def test_get_all_dops(diag_client, upload_pdx_data) -> None:
     assert "dops" in response_collection
     assert len(response_collection["diagnostic_data_sets"]) == 1
     assert len(response_collection["variants"]) == 3
-    assert len(response_collection["dops"]) == 26
+    assert len(response_collection["dops"]) == 36

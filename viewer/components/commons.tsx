@@ -638,10 +638,12 @@ export function OdxLinkPopoverComponent({
   odxLink,
   href,
   label,
+  children,
 }: {
   odxLink: OdxLinkRef | undefined
   href?: string
   label?: string
+  children?: React.ReactNode
 }) {
   return odxLink ? (
     <Popover
@@ -666,7 +668,12 @@ export function OdxLinkPopoverComponent({
       </PopoverTrigger>
       <PopoverContent>
         {(titleProps) => (
-          <div className="px-1 py-2">
+          <div
+            className={clsx(
+              'px-1 py-2',
+              children && 'h-[28rem] max-w-xl overflow-y-auto'
+            )}
+          >
             <div className="grid grid-cols-2 gap-1">
               <h3
                 className="text-lg font-bold justify-self-start"
@@ -685,6 +692,12 @@ export function OdxLinkPopoverComponent({
                 )}
               </div>
             </div>
+            {children ? (
+              <>
+                {children}
+                <Divider className="my-3" />
+              </>
+            ) : null}
             <OdxLinkComponent odxLink={odxLink} />
           </div>
         )}

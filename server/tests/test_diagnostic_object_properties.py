@@ -15,7 +15,7 @@ def test_get_all_dops(diag_schema, diag_client, upload_pdx_data) -> None:
     response_collection = json_dict_from_response(response)
 
     assert "dops" in response_collection
-    assert len(response_collection["dops"]) == 26
+    assert len(response_collection["dops"]) == 36
     for dop_with_refs in response_collection["dops"]:
         assert "referencing_variant_perma_ids" in dop_with_refs
         assert len(dop_with_refs["referencing_variant_perma_ids"]) > 0
@@ -45,7 +45,7 @@ def test_get_all_dops_with_filter(diag_schema, diag_client, upload_pdx_data) -> 
     response_collection = json_dict_from_response(response)
 
     assert "dops" in response_collection
-    assert len(response_collection["dops"]) == 26
+    assert len(response_collection["dops"]) == 36
     for dop_with_refs in response_collection["dops"]:
         assert "referencing_variant_perma_ids" in dop_with_refs
         assert len(dop_with_refs["referencing_variant_perma_ids"]) > 0
@@ -79,7 +79,7 @@ def test_get_all_dops_with_wrong_filter(diag_schema, diag_client, upload_pdx_dat
     response_collection = json_dict_from_response(response)
 
     assert "dops" in response_collection
-    assert len(response_collection["dops"]) == 26
+    assert len(response_collection["dops"]) == 36
     for dop_with_refs in response_collection["dops"]:
         assert "referencing_variant_perma_ids" in dop_with_refs
         assert len(dop_with_refs["referencing_variant_perma_ids"]) > 0
@@ -124,7 +124,7 @@ def test_get_dops_of_variant(
     response_collection = json_dict_from_response(response)
 
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 24
+    assert len(response_collection["items"]) == 34
     for dop_with_layer_info in response_collection["items"]:
         assert "origin_layer_perma_id" in dop_with_layer_info
         assert "origin_layer_ephemeral_id" in dop_with_layer_info
@@ -162,7 +162,7 @@ def test_get_dops_of_variant_with_filter(
     response_collection = json_dict_from_response(response)
 
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 24
+    assert len(response_collection["items"]) == 34
     for dop_with_layer_info in response_collection["items"]:
         assert "origin_layer_perma_id" in dop_with_layer_info
         assert "origin_layer_ephemeral_id" in dop_with_layer_info
