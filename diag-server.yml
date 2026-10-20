@@ -4,7 +4,7 @@ openapi: "3.0.3"
 info:
   title: RESTful HTTP API documentation of the odex.viewer backend server
   description: API documentation of the RESTful HTTP API of the odex.viewer backend server to interact with ODX-based diagnostic data.
-  version: "1.0"
+  version: "1.1.0"
   contact:
     name: odex.viewer Team
     url: https://github.com/mercedes-benz/odex.viewer
@@ -29,6 +29,8 @@ tags:
     description: Methods for requesting data object property (DOP) definitions.
   - name: State Charts
     description: Methods for requesting state chart definitions.
+  - name: Diagnostic Message Encoding and Decoding
+    description: Methods for encoding and decoding diagnostic messages via the server. 
 paths:
   /diagnostic-data-sets:
     get:
@@ -573,6 +575,110 @@ paths:
                 $ref: "odxtools-types.json#/components/schemas/OdxAny"
         "default":
           $ref: "#/components/responses/UnexpectedError"        
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}/messages/{message-perma-id}/encode:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+      - $ref: "#/components/parameters/DiagnosticCommunicationPermaId"
+      - name: message-perma-id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags:
+        - Diagnostic Message Encoding and Decoding
+      operationId: encodeDiagnosticMessage
+      description: >-
+        Encode the request or response identified by message-perma-id using its
+        ODX parameter definitions. The message must belong to the selected
+        diagnostic service, and the service must belong to the selected variant.
+        For a request message, parameter_values contains the request values and
+        request_parameter_values must be omitted. For a response message,
+        parameter_values contains the response values and request_parameter_values
+        is required, including an empty object when the request has no required
+        physical values. The backend first encodes the service request from
+        request_parameter_values, then uses those bytes as the triggering request
+        when encoding the response. This applies to positive and negative
+        responses, including responses with matching-request parameters.
+        Clients cannot supply encoded triggering-request bytes.
+        This operation does not transmit data to an ECU.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncodeDiagnosticMessageInput"
+      responses:
+        "200":
+          description: Encoded message and normalized physical parameter values.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticMessageCodecResult"
+        "400":
+          description: Invalid parameter values, missing response request_parameter_values, or a message or service that does not belong to the specified parent resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/JsonProblem"
+        "404":
+          description: The diagnostic data set, variant, service, or message was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/JsonProblem"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
+  /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}/messages/{message-perma-id}/decode:
+    parameters:
+      - $ref: "#/components/parameters/DiagnosticDataSetId"
+      - $ref: "#/components/parameters/VariantPermaId"
+      - $ref: "#/components/parameters/DiagnosticCommunicationPermaId"
+      - name: message-perma-id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: 
+        - Diagnostic Message Encoding and Decoding
+      operationId: decodeDiagnosticMessage
+      description: >-
+        Decode hexadecimal message bytes using the request or response identified
+        by message-perma-id. The message must belong to the selected diagnostic
+        service, and the service must belong to the selected variant. Decoding
+        returns physical parameter values, including constants and derived
+        parameters. No triggering-request values or bytes are required for
+        decoding. Matching-request parameters are extracted from the supplied
+        message; they are not checked against an original request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecodeDiagnosticMessageInput"
+      responses:
+        "200":
+          description: Decoded physical parameter values and normalized hexadecimal message bytes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticMessageCodecResult"
+        "400":
+          description: Invalid hexadecimal data, a message that cannot be decoded using the selected definition, or a message or service that does not belong to the specified parent resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/JsonProblem"
+        "404":
+          description: The diagnostic data set, variant, service, or message was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/JsonProblem"
+        default:
+          $ref: "#/components/responses/UnexpectedError"
 components:
   parameters:
     # Path Parameters
@@ -1266,6 +1372,87 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DiagCommRef"
+    DiagnosticParameterValues:
+      type: object
+      description: >-
+        Physical values keyed by parameter short name, recursively following the
+        selected ODX definition. Integers and floating-point values use JSON
+        numbers; TEXTTABLE values use the physical text labels as JSON strings,
+        including labels such as "true" or "false" rather than JSON booleans.
+        Structures use objects, repeated fields use arrays of item values, and
+        multiplexers and table-structure parameters use a two-element array
+        containing the case or table-row short name followed by its physical
+        values. Byte fields use hexadecimal strings with optional spaces, tabs,
+        or line breaks between complete bytes; decoded byte fields are normalized
+        to uppercase hexadecimal byte pairs separated by a single space.
+        DTC-DOP values use numeric physical trouble codes, not display codes or
+        serialized DTC objects. Decoded DTC objects are normalized to these numeric
+        values. When encoding, omit constants, reserved parameters,
+        matching-request parameters, and length or table keys inferred from their
+        associated values. Parameters with defaults may also be omitted. When
+        decoding, constants and derived parameters may be included in the result
+        but must not automatically be treated as editable values.
+      additionalProperties: true
+    DiagnosticHexMessage:
+      type: string
+      minLength: 2
+      pattern: '^[ \t\r\n]*([0-9A-Fa-f]{2}[ \t\r\n]*)+$'
+      description: >-
+        A nonempty hexadecimal diagnostic message. Complete byte pairs may be
+        contiguous or separated by spaces, tabs, or line breaks. Leading and
+        trailing whitespace is allowed. Odd digit counts and 0x prefixes are
+        not accepted. Results use uppercase byte pairs separated by a single space.
+      example: "19 02 01"
+    EncodeDiagnosticMessageInput:
+      type: object
+      additionalProperties: false
+      required:
+        - parameter_values
+      description: >-
+        parameter_values always describes the selected message. If that message
+        is a response, request_parameter_values must also be supplied so the
+        backend can encode its triggering request. This conditional requirement
+        is validated against the selected message definition at runtime. For a
+        request message, request_parameter_values must be omitted. Encoded
+        triggering-request bytes are not accepted.
+      properties:
+        parameter_values:
+          $ref: "#/components/schemas/DiagnosticParameterValues"
+        request_parameter_values:
+          $ref: "#/components/schemas/DiagnosticParameterValues"
+      example:
+        parameter_values:
+          response_code: 49
+        request_parameter_values:
+          TestFailed: "true"
+          TestFailedThisOperationCycle: "false"
+          PendingDTC: "false"
+          ConfirmedDTC: "false"
+          TestNotCompletedSinceLastClear: "false"
+          TestFailedSinceLastClear: "false"
+          TestNotCompletedThisOperationCycle: "false"
+          WarningIndicatorRequested: "false"
+    DecodeDiagnosticMessageInput:
+      type: object
+      additionalProperties: false
+      required:
+        - hex_message
+      properties:
+        hex_message:
+          $ref: "#/components/schemas/DiagnosticHexMessage"
+    DiagnosticMessageCodecResult:
+      type: object
+      description: >-
+        Normalized message bytes and physical values for the selected message,
+        not the triggering request. Values follow DiagnosticParameterValues.
+      required:
+        - hex_message
+        - parameter_values
+      properties:
+        hex_message:
+          $ref: "#/components/schemas/DiagnosticHexMessage"
+        parameter_values:
+          $ref: "#/components/schemas/DiagnosticParameterValues"
   headers:
     LocationHeader:
       description: URL of a newly created resource.

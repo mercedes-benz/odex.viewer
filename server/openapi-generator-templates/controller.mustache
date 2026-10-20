@@ -12,7 +12,7 @@ from {{packageName}} import util
 {{#operation}}
 
 
-def {{operationId}}({{#allParams}}{{paramName}}{{^required}}=None{{/required}}{{^-last}}, {{/-last}}{{/allParams}}{{^hasParams}}body=None{{/hasParams}}{{#hasParams}}, body=None{{/hasParams}}):  # noqa: E501
+def {{operationId}}({{#allParams}}{{paramName}}{{^required}}=None{{/required}}{{#required}}{{#isBodyParam}}=None{{/isBodyParam}}{{/required}}{{^-last}}, {{/-last}}{{/allParams}}{{^hasParams}}body=None{{/hasParams}}{{#hasParams}}, body=None{{/hasParams}}):  # noqa: E501
     """{{summary}}{{^summary}}{{operationId}}{{/summary}}
 
     {{notes}} # noqa: E501

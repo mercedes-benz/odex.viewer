@@ -294,6 +294,8 @@ from diag_server.openapi_server.models.structure import Structure
 from diag_server.openapi_server.models.sub_component import SubComponent
 from diag_server.openapi_server.models.sub_component_param_connector import SubComponentParamConnector
 from diag_server.openapi_server.models.sub_component_param_connector_resolved import SubComponentParamConnectorResolved
+from diag_server.openapi_server.models.sub_component_param_connector_resolved_in_param_ifs_inner import SubComponentParamConnectorResolvedInParamIfsInner
+from diag_server.openapi_server.models.sub_component_param_connector_resolved_out_param_ifs_inner import SubComponentParamConnectorResolvedOutParamIfsInner
 from diag_server.openapi_server.models.sub_component_pattern import SubComponentPattern
 from diag_server.openapi_server.models.sw_variable import SwVariable
 from diag_server.openapi_server.models.system_item import SystemItem
@@ -640,6 +642,8 @@ from diag_server.openapi_server.models.structure import Structure  # noqa: E501
 from diag_server.openapi_server.models.sub_component import SubComponent  # noqa: E501
 from diag_server.openapi_server.models.sub_component_param_connector import SubComponentParamConnector  # noqa: E501
 from diag_server.openapi_server.models.sub_component_param_connector_resolved import SubComponentParamConnectorResolved  # noqa: E501
+from diag_server.openapi_server.models.sub_component_param_connector_resolved_in_param_ifs_inner import SubComponentParamConnectorResolvedInParamIfsInner  # noqa: E501
+from diag_server.openapi_server.models.sub_component_param_connector_resolved_out_param_ifs_inner import SubComponentParamConnectorResolvedOutParamIfsInner  # noqa: E501
 from diag_server.openapi_server.models.sub_component_pattern import SubComponentPattern  # noqa: E501
 from diag_server.openapi_server.models.sw_variable import SwVariable  # noqa: E501
 from diag_server.openapi_server.models.system_item import SystemItem  # noqa: E501
@@ -1703,9 +1707,9 @@ class OdxAny(Model):
         :param in_param_if_refs: The in_param_if_refs of this OdxAny.  # noqa: E501
         :type in_param_if_refs: List[str]
         :param out_param_ifs: The out_param_ifs of this OdxAny.  # noqa: E501
-        :type out_param_ifs: List[Parameter]
+        :type out_param_ifs: List[SubComponentParamConnectorResolvedOutParamIfsInner]
         :param in_param_ifs: The in_param_ifs of this OdxAny.  # noqa: E501
-        :type in_param_ifs: List[Parameter]
+        :type in_param_ifs: List[SubComponentParamConnectorResolvedInParamIfsInner]
         :param origin: The origin of this OdxAny.  # noqa: E501
         :type origin: str
         :param sysparam: The sysparam of this OdxAny.  # noqa: E501
@@ -2311,8 +2315,8 @@ class OdxAny(Model):
             'sub_component_param_connectors': List[SubComponentParamConnector],
             'out_param_if_refs': List[str],
             'in_param_if_refs': List[str],
-            'out_param_ifs': List[Parameter],
-            'in_param_ifs': List[Parameter],
+            'out_param_ifs': List[SubComponentParamConnectorResolvedOutParamIfsInner],
+            'in_param_ifs': List[SubComponentParamConnectorResolvedInParamIfsInner],
             'origin': str,
             'sysparam': str,
             'key_label': str,
@@ -13968,43 +13972,43 @@ class OdxAny(Model):
         self._in_param_if_refs = in_param_if_refs
 
     @property
-    def out_param_ifs(self) -> List[Parameter]:
+    def out_param_ifs(self) -> List[SubComponentParamConnectorResolvedOutParamIfsInner]:
         """Gets the out_param_ifs of this OdxAny.
 
 
         :return: The out_param_ifs of this OdxAny.
-        :rtype: List[Parameter]
+        :rtype: List[SubComponentParamConnectorResolvedOutParamIfsInner]
         """
         return self._out_param_ifs
 
     @out_param_ifs.setter
-    def out_param_ifs(self, out_param_ifs: List[Parameter]):
+    def out_param_ifs(self, out_param_ifs: List[SubComponentParamConnectorResolvedOutParamIfsInner]):
         """Sets the out_param_ifs of this OdxAny.
 
 
         :param out_param_ifs: The out_param_ifs of this OdxAny.
-        :type out_param_ifs: List[Parameter]
+        :type out_param_ifs: List[SubComponentParamConnectorResolvedOutParamIfsInner]
         """
 
         self._out_param_ifs = out_param_ifs
 
     @property
-    def in_param_ifs(self) -> List[Parameter]:
+    def in_param_ifs(self) -> List[SubComponentParamConnectorResolvedInParamIfsInner]:
         """Gets the in_param_ifs of this OdxAny.
 
 
         :return: The in_param_ifs of this OdxAny.
-        :rtype: List[Parameter]
+        :rtype: List[SubComponentParamConnectorResolvedInParamIfsInner]
         """
         return self._in_param_ifs
 
     @in_param_ifs.setter
-    def in_param_ifs(self, in_param_ifs: List[Parameter]):
+    def in_param_ifs(self, in_param_ifs: List[SubComponentParamConnectorResolvedInParamIfsInner]):
         """Sets the in_param_ifs of this OdxAny.
 
 
         :param in_param_ifs: The in_param_ifs of this OdxAny.
-        :type in_param_ifs: List[Parameter]
+        :type in_param_ifs: List[SubComponentParamConnectorResolvedInParamIfsInner]
         """
 
         self._in_param_ifs = in_param_ifs
