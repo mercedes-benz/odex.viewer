@@ -531,6 +531,56 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}/messages/{message-perma-id}/encode': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description ID of the diagnostic data set to fetch */
+        'diag-data-set-id': components['parameters']['DiagnosticDataSetId']
+        /** @description ID of the variant object to fetch */
+        'variant-perma-id': components['parameters']['VariantPermaId']
+        /** @description ID of the diagnostic communication to fetch */
+        'diag-comm-perma-id': components['parameters']['DiagnosticCommunicationPermaId']
+        'message-perma-id': string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Encode the request or response identified by message-perma-id using its ODX parameter definitions. The message must belong to the selected diagnostic service, and the service must belong to the selected variant. For a request message, parameter_values contains the request values and request_parameter_values must be omitted. For a response message, parameter_values contains the response values and request_parameter_values is required, including an empty object when the request has no required physical values. The backend first encodes the service request from request_parameter_values, then uses those bytes as the triggering request when encoding the response. This applies to positive and negative responses, including responses with matching-request parameters. Clients cannot supply encoded triggering-request bytes. This operation does not transmit data to an ECU. */
+    post: operations['encodeDiagnosticMessage']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}/messages/{message-perma-id}/decode': {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description ID of the diagnostic data set to fetch */
+        'diag-data-set-id': components['parameters']['DiagnosticDataSetId']
+        /** @description ID of the variant object to fetch */
+        'variant-perma-id': components['parameters']['VariantPermaId']
+        /** @description ID of the diagnostic communication to fetch */
+        'diag-comm-perma-id': components['parameters']['DiagnosticCommunicationPermaId']
+        'message-perma-id': string
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** @description Decode hexadecimal message bytes using the request or response identified by message-perma-id. The message must belong to the selected diagnostic service, and the service must belong to the selected variant. Decoding returns physical parameter values, including constants and derived parameters. No triggering-request values or bytes are required for decoding. Matching-request parameters are extracted from the supplied message; they are not checked against an original request. */
+    post: operations['decodeDiagnosticMessage']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -835,6 +885,45 @@ export interface components {
     StateTransitionWithDiagCommRefs: {
       state_transition_ref?: string
       diag_comms?: components['schemas']['DiagCommRef'][]
+    }
+    /** @description Physical values keyed by parameter short name, recursively following the selected ODX definition. Integers and floating-point values use JSON numbers; TEXTTABLE values use the physical text labels as JSON strings, including labels such as "true" or "false" rather than JSON booleans. Structures use objects, repeated fields use arrays of item values, and multiplexers and table-structure parameters use a two-element array containing the case or table-row short name followed by its physical values. Byte fields use hexadecimal strings with optional spaces, tabs, or line breaks between complete bytes; decoded byte fields are normalized to uppercase hexadecimal byte pairs separated by a single space. DTC-DOP values use numeric physical trouble codes, not display codes or serialized DTC objects. Decoded DTC objects are normalized to these numeric values. When encoding, omit constants, reserved parameters, matching-request parameters, and length or table keys inferred from their associated values. Parameters with defaults may also be omitted. When decoding, constants and derived parameters may be included in the result but must not automatically be treated as editable values. */
+    DiagnosticParameterValues: {
+      [key: string]: unknown
+    }
+    /**
+     * @description A nonempty hexadecimal diagnostic message. Complete byte pairs may be contiguous or separated by spaces, tabs, or line breaks. Leading and trailing whitespace is allowed. Odd digit counts and 0x prefixes are not accepted. Results use uppercase byte pairs separated by a single space.
+     * @example 19 02 01
+     */
+    DiagnosticHexMessage: string
+    /**
+     * @description parameter_values always describes the selected message. If that message is a response, request_parameter_values must also be supplied so the backend can encode its triggering request. This conditional requirement is validated against the selected message definition at runtime. For a request message, request_parameter_values must be omitted. Encoded triggering-request bytes are not accepted.
+     * @example {
+     *       "parameter_values": {
+     *         "response_code": 49
+     *       },
+     *       "request_parameter_values": {
+     *         "TestFailed": "true",
+     *         "TestFailedThisOperationCycle": "false",
+     *         "PendingDTC": "false",
+     *         "ConfirmedDTC": "false",
+     *         "TestNotCompletedSinceLastClear": "false",
+     *         "TestFailedSinceLastClear": "false",
+     *         "TestNotCompletedThisOperationCycle": "false",
+     *         "WarningIndicatorRequested": "false"
+     *       }
+     *     }
+     */
+    EncodeDiagnosticMessageInput: {
+      parameter_values: components['schemas']['DiagnosticParameterValues']
+      request_parameter_values?: components['schemas']['DiagnosticParameterValues']
+    }
+    DecodeDiagnosticMessageInput: {
+      hex_message: components['schemas']['DiagnosticHexMessage']
+    }
+    /** @description Normalized message bytes and physical values for the selected message, not the triggering request. Values follow DiagnosticParameterValues. */
+    DiagnosticMessageCodecResult: {
+      hex_message: components['schemas']['DiagnosticHexMessage']
+      parameter_values: components['schemas']['DiagnosticParameterValues']
     }
     /** @enum {string} */
     DiagLayerType:
@@ -5185,10 +5274,17 @@ export interface components {
       odx_id?: components['schemas']['OdxLinkId']
       oid?: string
       diag_comm_snref?: string
+      diag_comm?: components['schemas']['DiagCommResolved']
       out_param_if_refs?: string[]
-      out_param_ifs?: components['schemas']['Parameter'][]
+      out_param_ifs?: (
+        | components['schemas']['Parameter']
+        | components['schemas']['OutputParam']
+      )[]
       in_param_if_refs?: string[]
-      in_param_ifs?: components['schemas']['Parameter'][]
+      in_param_ifs?: (
+        | components['schemas']['Parameter']
+        | components['schemas']['InputParam']
+      )[]
       perma_id?: string
       ephemeral_id?: number
       class_name?: string
@@ -6762,6 +6858,108 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['OdxAny']
+        }
+      }
+      default: components['responses']['UnexpectedError']
+    }
+  }
+  encodeDiagnosticMessage: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description ID of the diagnostic data set to fetch */
+        'diag-data-set-id': components['parameters']['DiagnosticDataSetId']
+        /** @description ID of the variant object to fetch */
+        'variant-perma-id': components['parameters']['VariantPermaId']
+        /** @description ID of the diagnostic communication to fetch */
+        'diag-comm-perma-id': components['parameters']['DiagnosticCommunicationPermaId']
+        'message-perma-id': string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EncodeDiagnosticMessageInput']
+      }
+    }
+    responses: {
+      /** @description Encoded message and normalized physical parameter values. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DiagnosticMessageCodecResult']
+        }
+      }
+      /** @description Invalid parameter values, missing response request_parameter_values, or a message or service that does not belong to the specified parent resource. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['JsonProblem']
+        }
+      }
+      /** @description The diagnostic data set, variant, service, or message was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['JsonProblem']
+        }
+      }
+      default: components['responses']['UnexpectedError']
+    }
+  }
+  decodeDiagnosticMessage: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description ID of the diagnostic data set to fetch */
+        'diag-data-set-id': components['parameters']['DiagnosticDataSetId']
+        /** @description ID of the variant object to fetch */
+        'variant-perma-id': components['parameters']['VariantPermaId']
+        /** @description ID of the diagnostic communication to fetch */
+        'diag-comm-perma-id': components['parameters']['DiagnosticCommunicationPermaId']
+        'message-perma-id': string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DecodeDiagnosticMessageInput']
+      }
+    }
+    responses: {
+      /** @description Decoded physical parameter values and normalized hexadecimal message bytes. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DiagnosticMessageCodecResult']
+        }
+      }
+      /** @description Invalid hexadecimal data, a message that cannot be decoded using the selected definition, or a message or service that does not belong to the specified parent resource. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['JsonProblem']
+        }
+      }
+      /** @description The diagnostic data set, variant, service, or message was not found. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['JsonProblem']
         }
       }
       default: components['responses']['UnexpectedError']

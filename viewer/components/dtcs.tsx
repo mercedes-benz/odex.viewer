@@ -105,20 +105,22 @@ export function DtcDopDetailsTable({ dop }: { dop: DtcDop }) {
         topContentPlacement="outside"
       >
         <TableHeader>
-          <TableColumn>SHORT NAME</TableColumn>
           <TableColumn>TROUBLE CODE</TableColumn>
-          <TableColumn>DISPLAY_TROUBLE_CODE</TableColumn>
+          <TableColumn>DISPLAY CODE</TableColumn>
+          <TableColumn>SHORT NAME</TableColumn>
+          <TableColumn>LONG NAME</TableColumn>
           <TableColumn>TEXT</TableColumn>
           <TableColumn>DESCRIPTION</TableColumn>
           <TableColumn>LEVEL</TableColumn>
-          <TableColumn>IS_TEMPORARY</TableColumn>
+          <TableColumn>TEMPORARY</TableColumn>
         </TableHeader>
         <TableBody emptyContent="No DTCs found">
           {filteredRows.map(({ dtc, key, troubleCode, temporary }) => (
             <TableRow key={key}>
-              <TableCell>{dtc.short_name}</TableCell>
               <TableCell>{troubleCode}</TableCell>
               <TableCell>{dtc.display_trouble_code}</TableCell>
+              <TableCell>{dtc.short_name}</TableCell>
+              <TableCell>{dtc.long_name}</TableCell>
               <TableCell>{dtc.text?.text}</TableCell>
               <TableCell>
                 <DescriptionComponent

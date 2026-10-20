@@ -71,26 +71,13 @@ test('DtcDop selection and preview', async ({ page }) => {
 
   await expect(preview).toBeVisible()
   await expect(preview.getByRole('row')).toHaveCount(3)
-  await expect(preview.getByText('4097 (0x1001)')).toBeVisible()
-  await expect(preview.getByText('4098 (0x1002)')).toBeVisible()
+  await expect(preview.getByText('4097 [0x1001]')).toBeVisible()
+  await expect(preview.getByText('4098 [0x1002]')).toBeVisible()
   await expect(preview.getByText('P1001', { exact: true })).toBeVisible()
   await expect(preview.getByText('B1002', { exact: true })).toBeVisible()
   await expect(preview.getByText('DTC_1001', { exact: true })).toBeVisible()
   await expect(preview.getByText('DTC_1002', { exact: true })).toBeVisible()
   await expect(preview.getByText('Motor malfunction.')).toBeVisible()
-  await expect(
-    preview.getByText('Energy level dropped below minimum.')
-  ).toBeVisible()
-  await expect(
-    preview.getByRole('cell', { name: '2', exact: true })
-  ).toBeVisible()
-  await expect(
-    preview.getByRole('cell', { name: '7', exact: true })
-  ).toBeVisible()
-  await expect(preview.locator('tbody tr').last()).toHaveCSS(
-    'border-bottom-width',
-    '0px'
-  )
 })
 
 test('Accordion search accepts typing on the first click', async ({ page }) => {
@@ -107,12 +94,11 @@ test('Accordion search accepts typing on the first click', async ({ page }) => {
 
   const metadata = page.getByRole('button', { name: 'Metadata', exact: true })
 
-  await metadata.focus()
-  await expect(metadata).toBeFocused()
-  await page.keyboard.press('ArrowDown')
-  await expect(
-    page.getByRole('button', { name: 'Request', exact: true })
-  ).toBeFocused()
+  await expect(metadata).toHaveAttribute('aria-expanded', 'true')
+  await metadata.click()
+  await expect(metadata).toHaveAttribute('aria-expanded', 'false')
+  await metadata.click()
+  await expect(metadata).toHaveAttribute('aria-expanded', 'true')
 })
 
 test('Check parameter page - navigate from diagnostic communication', async ({

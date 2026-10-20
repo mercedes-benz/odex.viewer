@@ -32,6 +32,12 @@ export const useMutate = createMutateHook(
 
 // Export required API types
 export type JsonProblem = components['schemas']['JsonProblem']
+export type DiagnosticMessageCodecResult =
+  components['schemas']['DiagnosticMessageCodecResult']
+export type EncodeDiagnosticMessageInput =
+  components['schemas']['EncodeDiagnosticMessageInput']
+export type DecodeDiagnosticMessageInput =
+  components['schemas']['DecodeDiagnosticMessageInput']
 export type DiagnosticDataSetDescriptor =
   components['schemas']['DiagnosticDataSetDescriptor']
 export type DiagnosticDataType = components['schemas']['DiagnosticDataType']

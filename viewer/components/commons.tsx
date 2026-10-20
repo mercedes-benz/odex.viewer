@@ -81,6 +81,7 @@ import {
   VerticalDotsIcon,
 } from '@/components/icons'
 import { ParametersComponent } from '@/components/parameters'
+import { DiagnosticMessageKind } from '@/components/diagnostic-message-codec'
 import { subtitleWithSize } from '@/components/primitives'
 import { SpecialDataGroupsComponent } from '@/components/specialdatagroups'
 import { DiagnosticCommTargetObjectIds } from '@/types/index'
@@ -490,10 +491,14 @@ export function CommonRequestResponseComponent({
   reqResponse,
   targetObjectIds,
   pageId,
+  messageKind,
+  triggeringRequest,
 }: {
   reqResponse: Request | Response
   targetObjectIds: DiagnosticCommTargetObjectIds
   pageId: string
+  messageKind: DiagnosticMessageKind
+  triggeringRequest?: Request
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -509,9 +514,11 @@ export function CommonRequestResponseComponent({
         </div>
         {reqResponse.parameters ? (
           <ParametersComponent
+            messageKind={messageKind}
             pageId={pageId}
             parentObject={reqResponse}
             targetObjectIds={targetObjectIds}
+            triggeringRequest={triggeringRequest}
           />
         ) : (
           <div className="pt-4 place-self-start">

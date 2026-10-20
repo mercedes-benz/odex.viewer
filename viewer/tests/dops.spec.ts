@@ -30,8 +30,8 @@ test('Check DtcDop page - searchable DTC details in Compact Summary', async ({
     'TEMPORARY',
   ])
   await expect(table.getByRole('row')).toHaveCount(3)
-  await expect(table.getByText('4097 (0x1001)')).toBeVisible()
-  await expect(table.getByText('4098 (0x1002)')).toBeVisible()
+  await expect(table.getByText('4097 [0x1001]')).toBeVisible()
+  await expect(table.getByText('4098 [0x1002]')).toBeVisible()
   await expect(
     page
       .getByText('Compact Summary', { exact: true })

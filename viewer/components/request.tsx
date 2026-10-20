@@ -18,6 +18,7 @@ export function RequestComponent({
 }) {
   return (
     <CommonRequestResponseComponent
+      messageKind="request"
       pageId={pageId}
       reqResponse={request}
       targetObjectIds={targetObjectIds}

@@ -199,7 +199,7 @@ test('Check diagnostic variant page - COMM_TYPE filter on diag comms sub-table',
     .getByTestId('filter-COMM_TYPE-menu-entry-DiagService')
     .click({ force: true })
 
-  await expect(page.getByText('8 of total 9 diagnostic')).toBeVisible()
+  await expect(page.getByText('9 of total 10 diagnostic')).toBeVisible()
 })
 
 test('Check diagnostic variant page - LEVEL filter on DTCs sub-table', async ({

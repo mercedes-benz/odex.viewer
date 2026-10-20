@@ -30,8 +30,8 @@ import client, {
   isComplexDop,
   isDataObjectPropertyDop,
   isDtcDop,
-  isEndOfPduFieldDop,
   isEnvironmentDataDescriptionDop,
+  isEndOfPduFieldDop,
   isFieldDop,
   isLengthKeyParameterType,
   isMatchingRequestParameterType,
@@ -70,6 +70,12 @@ import {
   ParameterTableColumnDropdown,
   TableFilterDropdown,
 } from '@/components/custom-dropdowns'
+import { subtitleWithSize } from '@/components/primitives'
+import {
+  DiagnosticMessageCodecControls,
+  DiagnosticMessageKind,
+  useMessageValueStore,
+} from '@/components/diagnostic-message-codec'
 import { ChevronDownIcon, SearchIcon } from '@/components/icons'
 import { useSelectionWithIndexedDB } from '@/storage/settings'
 import {
@@ -91,12 +97,33 @@ export function ParametersComponent({
   parentObject,
   targetObjectIds,
   pageId,
+  messageKind,
+  triggeringRequest,
 }: {
   parentObject: Request | Response | Structure | EnvironmentData
   targetObjectIds: DiagnosticCommTargetObjectIds | DataObjectPropTargetObjectIds
   pageId: string
+  messageKind?: DiagnosticMessageKind
+  triggeringRequest?: Request
 }) {
   const parameters = parentObject.parameters as ParameterUnionType[]
+  const messageValueStore = useMessageValueStore()
+  const messageId =
+    messageKind !== undefined &&
+    isDiagnosticCommTargetObjectIds(targetObjectIds)
+      ? parentObject.perma_id
+      : undefined
+  const [, refreshMessageValues] = React.useReducer(
+    (revision: number) => revision + 1,
+    0
+  )
+  const localValueListeners = React.useRef(new Set<() => void>())
+
+  React.useEffect(() => {
+    if (!messageId || !messageValueStore) return
+
+    return messageValueStore.subscribe(messageId, refreshMessageValues)
+  }, [messageId, messageValueStore, refreshMessageValues])
 
   // Introduce all state variables for searching and filtering the parameters
   const [searchValue, setSearchValue] = React.useState('')
@@ -129,9 +156,21 @@ export function ParametersComponent({
     const dopCache = new Map<number, Promise<DopBase | undefined>>()
 
     return {
-      getValue: (path) => parameterValues.current[path],
+      getValue: (path) =>
+        (messageId && messageValueStore?.getValue(messageId, path)) ??
+        parameterValues.current[path],
       setValue: (path, value) => {
         parameterValues.current[path] = value
+        if (messageId) messageValueStore?.setValue(messageId, path, value)
+        else localValueListeners.current.forEach((listener) => listener())
+      },
+      subscribe: (listener) => {
+        if (messageId && messageValueStore) {
+          return messageValueStore.subscribe(messageId, listener)
+        }
+        localValueListeners.current.add(listener)
+
+        return () => localValueListeners.current.delete(listener)
       },
       loadDop: (ephemeralId) => {
         let pendingDop = dopCache.get(ephemeralId)
@@ -144,7 +183,50 @@ export function ParametersComponent({
         return pendingDop
       },
     }
-  }, [])
+  }, [messageId, messageValueStore, refreshMessageValues])
+
+  const buildParameterValues = React.useCallback(
+    async (message: Request | Response) => {
+      if (!messageValueStore || !message.perma_id) {
+        throw new Error('Message values are not available.')
+      }
+
+      return serializeMessageParameters(
+        message.parameters as ParameterUnionType[],
+        message.perma_id,
+        '',
+        messageValueStore,
+        valueStore
+      )
+    },
+    [messageValueStore, valueStore]
+  )
+
+  const applyDecodedValues = React.useCallback(
+    async (
+      message: Request | Response,
+      decodedValues: Record<string, unknown>
+    ) => {
+      if (!messageValueStore || !message.perma_id) {
+        throw new Error('Message values are not available.')
+      }
+
+      const hydratedValues: Record<string, AtomicParameterValue> = {}
+      const updatedValueCount = await hydrateMessageParameters(
+        (message.parameters ?? []) as ParameterUnionType[],
+        decodedValues,
+        '',
+        hydratedValues,
+        valueStore
+      )
+
+      parameterValues.current = { ...hydratedValues }
+      messageValueStore.setValues(message.perma_id, hydratedValues)
+
+      return updatedValueCount
+    },
+    [messageValueStore, valueStore]
+  )
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ParameterColumnDefinition[] = [
@@ -863,6 +945,23 @@ export function ParametersComponent({
           )}
         </TableBody>
       </Table>
+      {messageKind !== undefined && messageId !== undefined ? (
+        <div className="mt-4 w-full text-left">
+          <div className="pb-2 text-start">
+            <div className={subtitleWithSize({ size: 'md' })}>
+              Encoding/Decoding
+            </div>
+          </div>
+          <DiagnosticMessageCodecControls
+            applyDecodedValues={applyDecodedValues}
+            buildParameterValues={buildParameterValues}
+            message={parentObject as Request | Response}
+            messageKind={messageKind}
+            targetObjectIds={targetObjectIds as DiagnosticCommTargetObjectIds}
+            triggeringRequest={triggeringRequest}
+          />
+        </div>
+      ) : null}
     </ParameterValueStoreContext.Provider>
   )
 }
@@ -872,7 +971,470 @@ type AtomicParameterValue = string | boolean
 type ParameterValueStore = {
   getValue: (path: string) => AtomicParameterValue | undefined
   setValue: (path: string, value: AtomicParameterValue) => void
+  subscribe: (listener: () => void) => () => void
   loadDop: (ephemeralId: number) => Promise<DopBase | undefined>
+}
+
+function useParameterValue(path: string): AtomicParameterValue | undefined {
+  const store = useParameterValueStore()
+
+  return React.useSyncExternalStore(
+    store.subscribe,
+    () => store.getValue(path),
+    () => store.getValue(path)
+  )
+}
+
+async function serializeMessageParameters(
+  parameters: ParameterUnionType[],
+  messageId: string,
+  parentPath: string,
+  messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
+  valueStore: ParameterValueStore
+): Promise<Record<string, unknown>> {
+  const values: Record<string, unknown> = {}
+
+  for (let index = 0; index < parameters.length; index += 1) {
+    const parameter = parameters[index]
+
+    if (
+      parameter === undefined ||
+      !isValueParameterType(parameter) ||
+      !parameter.short_name
+    ) {
+      continue
+    }
+
+    const path = parentPath
+      ? `${parentPath}.${parameter.short_name}`
+      : getParameterValueKey(parameter)
+
+    const value = messageValueStore.getValue(messageId, path)
+
+    if (value === undefined || value === '') continue
+
+    const dopId = parameter.dop_ref?.resolved_object_ephemeral_id
+
+    if (dopId === undefined) continue
+
+    const dop = await valueStore.loadDop(dopId)
+
+    if (dop === undefined) {
+      throw new Error(`Could not load the DOP for ${parameter.short_name}.`)
+    }
+
+    const serializedValue = await serializeDopValue(
+      dop,
+      value,
+      messageId,
+      path,
+      messageValueStore,
+      valueStore
+    )
+
+    if (serializedValue !== undefined)
+      values[parameter.short_name] = serializedValue
+  }
+
+  return values
+}
+
+async function serializeDopValue(
+  dop: DopBase,
+  value: AtomicParameterValue,
+  messageId: string,
+  path: string,
+  messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
+  valueStore: ParameterValueStore
+): Promise<unknown> {
+  if (isDtcDop(dop)) {
+    const code = Number(value)
+
+    if (!Number.isInteger(code))
+      throw new Error('Select a valid diagnostic trouble code.')
+
+    return code
+  }
+
+  if (isDataObjectPropertyDop(dop)) {
+    const inputSpec = getParameterValueInputSpec(dop)
+
+    if (inputSpec?.kind === 'number') {
+      const numericValue = Number(value)
+
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(
+          `${dop.short_name ?? 'Parameter'} must be a valid number.`
+        )
+      }
+
+      return numericValue
+    }
+
+    return value
+  }
+
+  if (isBasicStructureDop(dop)) {
+    return serializeMessageParameters(
+      (dop.parameters ?? []) as ParameterUnionType[],
+      messageId,
+      path,
+      messageValueStore,
+      valueStore
+    )
+  }
+
+  if (isFieldDop(dop)) {
+    const itemRef = dop.structure_ref ?? dop.env_data_desc_ref
+
+    const itemDopId = itemRef?.resolved_object_ephemeral_id
+
+    if (itemDopId === undefined) {
+      throw new Error(
+        `${dop.short_name ?? 'Repeated field'} has no resolved item definition.`
+      )
+    }
+
+    const itemDop = await valueStore.loadDop(itemDopId)
+
+    if (itemDop === undefined) {
+      throw new Error(
+        `Could not load an item definition for ${dop.short_name ?? 'repeated field'}.`
+      )
+    }
+
+    const fixedCount = isStaticFieldDop(dop)
+      ? dop.fixed_number_of_items
+      : undefined
+    const minItems = isEndOfPduFieldDop(dop)
+      ? (dop.min_number_of_items ?? 0)
+      : 0
+    const storedCount = Number(
+      messageValueStore.getValue(messageId, `${path}#count`)
+    )
+    const itemCount =
+      fixedCount ??
+      (Number.isInteger(storedCount) && storedCount >= minItems
+        ? storedCount
+        : minItems)
+
+    return Promise.all(
+      Array.from({ length: itemCount }, (_, index) =>
+        serializeDopTree(
+          itemDop,
+          messageId,
+          `${path}[${index}]`,
+          messageValueStore,
+          valueStore
+        )
+      )
+    )
+  }
+
+  if (isMultiplexerDop(dop)) {
+    const selectedKey = messageValueStore.getValue(messageId, `${path}#case`)
+
+    if (typeof selectedKey !== 'string' || selectedKey === '') return undefined
+
+    const selectedCase =
+      selectedKey === '#default'
+        ? dop.default_case
+        : dop.cases?.find((item) => item.short_name === selectedKey)
+    const structureId =
+      selectedCase?.structure_ref?.resolved_object_ephemeral_id
+
+    if (selectedCase?.short_name === undefined || structureId === undefined) {
+      throw new Error(
+        `The selected case for ${dop.short_name ?? 'multiplexer'} is incomplete.`
+      )
+    }
+
+    const structure = await valueStore.loadDop(structureId)
+
+    if (structure === undefined) {
+      throw new Error(
+        `Could not load the selected case for ${dop.short_name ?? 'multiplexer'}.`
+      )
+    }
+
+    return [
+      selectedCase.short_name,
+      await serializeDopTree(
+        structure,
+        messageId,
+        `${path}.${selectedKey}`,
+        messageValueStore,
+        valueStore
+      ),
+    ]
+  }
+
+  if (isEnvironmentDataDescriptionDop(dop)) {
+    const selectedKey = messageValueStore.getValue(messageId, `${path}#envData`)
+
+    if (typeof selectedKey !== 'string' || selectedKey === '') return undefined
+
+    const inlineIndex = selectedKey.startsWith('inline-')
+      ? Number(selectedKey.slice('inline-'.length))
+      : undefined
+    const selectedData =
+      inlineIndex === undefined ? undefined : dop.env_datas?.[inlineIndex]
+    const selectedReference =
+      inlineIndex === undefined
+        ? dop.env_data_refs?.[Number(selectedKey.slice('ref-'.length))]
+        : undefined
+
+    const selectedName =
+      selectedData?.short_name ?? selectedReference?.resolved_object_short_name
+
+    if (!selectedName || (!selectedData && !selectedReference)) {
+      throw new Error(
+        `The selected environment data for ${dop.short_name ?? 'parameter'} is unavailable.`
+      )
+    }
+
+    if (selectedData !== undefined) {
+      return serializeMessageParameters(
+        (selectedData.parameters ?? []) as ParameterUnionType[],
+        messageId,
+        `${path}.${selectedName}`,
+        messageValueStore,
+        valueStore
+      )
+    }
+
+    const selectedDopId = selectedReference?.resolved_object_ephemeral_id
+
+    const selectedDop =
+      selectedDopId === undefined
+        ? undefined
+        : await valueStore.loadDop(selectedDopId)
+
+    return selectedDop === undefined
+      ? undefined
+      : serializeDopTree(
+          selectedDop,
+          messageId,
+          `${path}.${selectedName}`,
+          messageValueStore,
+          valueStore
+        )
+  }
+
+  return undefined
+}
+
+async function serializeDopTree(
+  dop: DopBase,
+  messageId: string,
+  path: string,
+  messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
+  valueStore: ParameterValueStore
+): Promise<unknown> {
+  if (isBasicStructureDop(dop)) {
+    return serializeMessageParameters(
+      (dop.parameters ?? []) as ParameterUnionType[],
+      messageId,
+      path,
+      messageValueStore,
+      valueStore
+    )
+  }
+
+  const value = messageValueStore.getValue(messageId, path)
+
+  return value === undefined || value === ''
+    ? undefined
+    : serializeDopValue(
+        dop,
+        value,
+        messageId,
+        path,
+        messageValueStore,
+        valueStore
+      )
+}
+
+async function hydrateMessageParameters(
+  parameters: ParameterUnionType[],
+  physicalValues: Record<string, unknown>,
+  parentPath: string,
+  hydratedValues: Record<string, AtomicParameterValue>,
+  valueStore: ParameterValueStore
+): Promise<number> {
+  let updatedValueCount = 0
+
+  for (const parameter of parameters) {
+    if (
+      !isValueParameterType(parameter) ||
+      !parameter.short_name ||
+      !Object.prototype.hasOwnProperty.call(
+        physicalValues,
+        parameter.short_name
+      )
+    ) {
+      continue
+    }
+
+    const path = parentPath
+      ? `${parentPath}.${parameter.short_name}`
+      : getParameterValueKey(parameter)
+    const dopId = parameter.dop_ref?.resolved_object_ephemeral_id
+
+    if (dopId === undefined) continue
+
+    const dop = await valueStore.loadDop(dopId)
+
+    if (dop === undefined) continue
+
+    updatedValueCount += await hydrateDopValue(
+      dop,
+      physicalValues[parameter.short_name],
+      path,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  return updatedValueCount
+}
+
+async function hydrateDopValue(
+  dop: DopBase,
+  physicalValue: unknown,
+  path: string,
+  hydratedValues: Record<string, AtomicParameterValue>,
+  valueStore: ParameterValueStore
+): Promise<number> {
+  if (physicalValue === undefined || physicalValue === null) return 0
+
+  if (isDtcDop(dop)) {
+    const troubleCode = Number(physicalValue)
+
+    if (!Number.isInteger(troubleCode)) return 0
+    hydratedValues[path] = troubleCode.toString()
+
+    return 1
+  }
+
+  if (isDataObjectPropertyDop(dop)) {
+    const inputSpec = getParameterValueInputSpec(dop)
+
+    if (inputSpec === undefined) return 0
+
+    if (inputSpec.kind === 'boolean') {
+      if (typeof physicalValue === 'boolean') {
+        hydratedValues[path] = physicalValue
+
+        return 1
+      }
+      if (physicalValue === 'true' || physicalValue === 'false') {
+        hydratedValues[path] = physicalValue === 'true'
+
+        return 1
+      }
+
+      return 0
+    }
+
+    if (
+      typeof physicalValue === 'string' ||
+      typeof physicalValue === 'number'
+    ) {
+      hydratedValues[path] = physicalValue.toString()
+
+      return 1
+    }
+
+    return 0
+  }
+
+  if (isBasicStructureDop(dop)) {
+    if (!isRecord(physicalValue)) return 0
+    if (Object.keys(physicalValue).length > 0) {
+      hydratedValues[`${path}#expanded`] = true
+    }
+
+    return hydrateMessageParameters(
+      (dop.parameters ?? []) as ParameterUnionType[],
+      physicalValue,
+      path,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  if (isFieldDop(dop)) {
+    if (!Array.isArray(physicalValue)) return 0
+
+    const itemRef = dop.structure_ref ?? dop.env_data_desc_ref
+    const itemDopId = itemRef?.resolved_object_ephemeral_id
+
+    if (itemDopId === undefined) return 0
+
+    const itemDop = await valueStore.loadDop(itemDopId)
+
+    if (itemDop === undefined) return 0
+
+    hydratedValues[`${path}#count`] = physicalValue.length.toString()
+    if (physicalValue.length > 0) hydratedValues[`${path}#expanded`] = true
+
+    let updatedValueCount = 0
+
+    for (let index = 0; index < physicalValue.length; index += 1) {
+      updatedValueCount += await hydrateDopValue(
+        itemDop,
+        physicalValue[index],
+        `${path}[${index}]`,
+        hydratedValues,
+        valueStore
+      )
+    }
+
+    return updatedValueCount
+  }
+
+  if (isMultiplexerDop(dop)) {
+    if (
+      !Array.isArray(physicalValue) ||
+      physicalValue.length !== 2 ||
+      typeof physicalValue[0] !== 'string'
+    ) {
+      return 0
+    }
+
+    const caseName = physicalValue[0]
+    const useDefaultCase = dop.default_case?.short_name === caseName
+    const caseKey = useDefaultCase ? '#default' : caseName
+    const selectedCase = useDefaultCase
+      ? dop.default_case
+      : dop.cases?.find((item) => item.short_name === caseName)
+    const structureId =
+      selectedCase?.structure_ref?.resolved_object_ephemeral_id
+
+    if (selectedCase === undefined || structureId === undefined) return 0
+
+    const structure = await valueStore.loadDop(structureId)
+
+    if (structure === undefined) return 0
+
+    hydratedValues[`${path}#case`] = caseKey
+    hydratedValues[`${path}#expanded`] = true
+
+    return hydrateDopValue(
+      structure,
+      physicalValue[1],
+      `${path}.${caseKey}`,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  return 0
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 type ValueTreePosition = {
@@ -947,11 +1509,18 @@ function DopCompactPreview({ dopEphemeralId }: { dopEphemeralId: number }) {
     const previewState: Record<string, AtomicParameterValue> = {
       'preview#expanded': true,
     }
+    const listeners = new Set<() => void>()
 
     return {
       getValue: (path) => previewState[path],
       setValue: (path, value) => {
         previewState[path] = value
+        listeners.forEach((listener) => listener())
+      },
+      subscribe: (listener) => {
+        listeners.add(listener)
+
+        return () => listeners.delete(listener)
       },
       loadDop: tableStore.loadDop,
     }
@@ -1113,7 +1682,7 @@ function DtcDopPreview({ dop }: { dop: DtcDop }) {
                 >
                   <td className="p-2">
                     {dtc.trouble_code !== undefined
-                      ? `${dtc.trouble_code} (${getHexRepresentation(dtc.trouble_code) || '0x0'})`
+                      ? `${dtc.trouble_code} [${getHexRepresentation(dtc.trouble_code) || '0x0'}]`
                       : 'Not specified'}
                   </td>
                   <td className="p-2">{dtc.display_trouble_code}</td>
@@ -1148,7 +1717,7 @@ function DtcDopPreview({ dop }: { dop: DtcDop }) {
 
 function DtcDopValueInput({ dop, path }: { dop: DtcDop; path: string }) {
   const store = useParameterValueStore()
-  const [value, setValue] = React.useState(() => store.getValue(path) ?? '')
+  const value = useParameterValue(path) ?? ''
   const selectableDtcs = (dop.dtcs ?? []).filter(
     (dtc) => dtc.trouble_code !== undefined
   )
@@ -1160,7 +1729,6 @@ function DtcDopValueInput({ dop, path }: { dop: DtcDop; path: string }) {
       disabled={selectableDtcs.length === 0}
       value={typeof value === 'string' ? value : ''}
       onChange={(event) => {
-        setValue(event.target.value)
         store.setValue(path, event.target.value)
       }}
     >
@@ -1315,12 +1883,9 @@ function ValueTreeNode({
   const store = useParameterValueStore()
   const mode = React.useContext(ValueTreeModeContext)
   const expandedKey = `${stateKey}#expanded`
-  const [isExpanded, setIsExpanded] = React.useState(
-    store.getValue(expandedKey) === true
-  )
+  const isExpanded = useParameterValue(expandedKey) === true
 
   const toggleExpanded = () => {
-    setIsExpanded(!isExpanded)
     store.setValue(expandedKey, !isExpanded)
   }
 
@@ -1587,19 +2152,14 @@ function FieldValueTree({
   const maxItems =
     fixedCount ??
     (isEndOfPduFieldDop(field) ? field.max_number_of_items : undefined)
-  const [itemCount, setItemCount] = React.useState(() => {
-    const storedCount = Number(store.getValue(countKey))
-
-    return (
-      fixedCount ??
-      (Number.isInteger(storedCount) && storedCount >= minItems
-        ? storedCount
-        : minItems)
-    )
-  })
+  const storedCount = Number(useParameterValue(countKey))
+  const itemCount =
+    fixedCount ??
+    (Number.isInteger(storedCount) && storedCount >= minItems
+      ? storedCount
+      : minItems)
 
   const updateItemCount = (nextCount: number) => {
-    setItemCount(nextCount)
     store.setValue(countKey, nextCount.toString())
   }
 
@@ -1701,11 +2261,8 @@ function MultiplexerValueTree({
   const store = useParameterValueStore()
   const mode = React.useContext(ValueTreeModeContext)
   const caseKey = `${path}#case`
-  const [selectedCaseKey, setSelectedCaseKey] = React.useState(() => {
-    const storedCase = store.getValue(caseKey)
-
-    return typeof storedCase === 'string' ? storedCase : ''
-  })
+  const storedCase = useParameterValue(caseKey)
+  const selectedCaseKey = typeof storedCase === 'string' ? storedCase : ''
 
   const cases = multiplexer.cases ?? []
   const caseOptions = cases.map((muxCase, index) => ({
@@ -1765,7 +2322,6 @@ function MultiplexerValueTree({
         className={VALUE_SELECT_CLASS_NAME}
         value={selectedCaseKey}
         onChange={(event) => {
-          setSelectedCaseKey(event.target.value)
           store.setValue(caseKey, event.target.value)
         }}
       >
@@ -1812,11 +2368,8 @@ function EnvironmentDataDescriptionValueTree({
   const store = useParameterValueStore()
   const mode = React.useContext(ValueTreeModeContext)
   const envDataKey = `${path}#envData`
-  const [selectedKey, setSelectedKey] = React.useState(() => {
-    const storedKey = store.getValue(envDataKey)
-
-    return typeof storedKey === 'string' ? storedKey : ''
-  })
+  const storedKey = useParameterValue(envDataKey)
+  const selectedKey = typeof storedKey === 'string' ? storedKey : ''
 
   const inlineOptions = (envDataDesc.env_datas ?? []).map((envData, index) => ({
     key: `inline-${index}`,
@@ -1887,7 +2440,6 @@ function EnvironmentDataDescriptionValueTree({
         className={VALUE_SELECT_CLASS_NAME}
         value={selectedKey}
         onChange={(event) => {
-          setSelectedKey(event.target.value)
           store.setValue(envDataKey, event.target.value)
         }}
       >
@@ -1941,12 +2493,9 @@ function AtomicParameterValueInput({
   path: string
 }) {
   const store = useParameterValueStore()
-  const [localValue, setLocalValue] = React.useState<AtomicParameterValue>(
-    store.getValue(path) ?? ''
-  )
+  const localValue = useParameterValue(path) ?? ''
 
   const updateValue = (nextValue: AtomicParameterValue) => {
-    setLocalValue(nextValue)
     store.setValue(path, nextValue)
   }
 

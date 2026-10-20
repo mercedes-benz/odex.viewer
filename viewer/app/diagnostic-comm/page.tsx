@@ -30,6 +30,7 @@ import { headline, subtitle, title } from '@/components/primitives'
 import { ProtocolsComponent } from '@/components/protocols'
 import { RelatedDiagCommsComponent } from '@/components/relateddiagcomms'
 import { RequestComponent } from '@/components/request'
+import { MessageValueStoreProvider } from '@/components/diagnostic-message-codec'
 import {
   NegResponsesComponent,
   PosResponsesComponent,
@@ -215,259 +216,267 @@ export default function DiagnosticCommPage() {
 
         <ResetPageSettingsButton page={pageId} />
 
-        <Accordion
-          className="min-w-4xl pt-5"
-          data-testid="diag-comm-accordion"
-          itemClasses={itemClasses}
-          selectedKeys={selectedKeys}
-          selectionMode="multiple"
-          variant="splitted"
-          onSelectionChange={setSelectedKeys}
-        >
-          <AccordionItem key="metadata" aria-label="Metadata" title="Metadata">
-            <DiagCommMetadata
-              containerId={targetObjectIds.containerId}
-              diagCommData={diagCommData}
-            />
-          </AccordionItem>
-          {diagCommData.sdgs && diagCommData.sdgs.length > 0 ? (
+        <MessageValueStoreProvider>
+          <Accordion
+            className="min-w-4xl pt-5"
+            data-testid="diag-comm-accordion"
+            itemClasses={itemClasses}
+            selectedKeys={selectedKeys}
+            selectionMode="multiple"
+            variant="splitted"
+            onSelectionChange={setSelectedKeys}
+          >
             <AccordionItem
-              key="sdgs"
-              aria-label="Special Data Groups"
-              title="Special Data Groups"
+              key="metadata"
+              aria-label="Metadata"
+              title="Metadata"
             >
-              <SpecialDataGroupsComponent
-                pageId={pageId}
-                sdgs={diagCommData.sdgs}
+              <DiagCommMetadata
+                containerId={targetObjectIds.containerId}
+                diagCommData={diagCommData}
               />
             </AccordionItem>
-          ) : (
-            <></>
-          )}
+            {diagCommData.sdgs && diagCommData.sdgs.length > 0 ? (
+              <AccordionItem
+                key="sdgs"
+                aria-label="Special Data Groups"
+                title="Special Data Groups"
+              >
+                <SpecialDataGroupsComponent
+                  pageId={pageId}
+                  sdgs={diagCommData.sdgs}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
 
-          {isSingleEcuJob(diagCommData) &&
-          diagCommData.prog_codes &&
-          diagCommData.prog_codes.length > 0 ? (
-            <AccordionItem
-              key="progCodes"
-              aria-label="Program Codes"
-              title="Program Codes"
-            >
-              <ProgramCodesComponent
-                progCodes={diagCommData.prog_codes}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isDiagService(diagCommData) && diagCommData.request ? (
-            <AccordionItem key="request" aria-label="Request" title="Request">
-              <RequestComponent
-                pageId={pageId}
-                request={diagCommData.request}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isSingleEcuJob(diagCommData) &&
-          diagCommData.input_params &&
-          diagCommData.input_params.length > 0 ? (
-            <AccordionItem
-              key="inputParams"
-              aria-label="Input Parameters"
-              title="Input Parameters"
-            >
-              <InputParametersComponent
-                params={diagCommData.input_params}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isDiagService(diagCommData) &&
-          diagCommData.positive_responses &&
-          diagCommData.positive_responses.length > 0 ? (
-            <AccordionItem
-              key="posResponses"
-              aria-label="Positive Responses"
-              title="Positive Responses"
-            >
-              <PosResponsesComponent
-                pageId={pageId}
-                posResponses={diagCommData.positive_responses}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isSingleEcuJob(diagCommData) &&
-          diagCommData.output_params &&
-          diagCommData.output_params.length > 0 ? (
-            <AccordionItem
-              key="outputParams"
-              aria-label="Output Parameters"
-              title="Output Parameters"
-            >
-              <OutputParametersComponent
-                params={diagCommData.output_params}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isSingleEcuJob(diagCommData) &&
-          diagCommData.neg_output_params &&
-          diagCommData.neg_output_params.length > 0 ? (
-            <AccordionItem
-              key="negOutParams"
-              aria-label="Negative Output Parameters"
-              title="Negative Output Parameters"
-            >
-              <NegativeOutputParametersComponent
-                params={diagCommData.neg_output_params}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isDiagService(diagCommData) &&
-          diagCommData.pos_response_suppressible ? (
-            <AccordionItem
-              key="posResponses"
-              aria-label="Positive Response Suppressible"
-              title="Positive Response Suppressible"
-            >
-              <PosResponseSuppressibleComponent
-                posRspSup={diagCommData.pos_response_suppressible}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isDiagService(diagCommData) &&
-          diagCommData.negative_responses &&
-          diagCommData.negative_responses.length > 0 ? (
-            <AccordionItem
-              key="negResponses"
-              aria-label="Negative Responses"
-              title="Negative Responses"
-            >
-              <NegResponsesComponent
-                negResponses={diagCommData.negative_responses}
-                pageId={pageId}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {isDiagService(diagCommData) &&
-          diagCommData.comparams &&
-          diagCommData.comparams.length > 0 ? (
-            <AccordionItem
-              key="commParams"
-              aria-label="Communication Parameters"
-              title="Communication Parameters"
-            >
-              <ComparamInstancesComponent
-                comparams={diagCommData.comparams}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {diagCommData.audience ? (
-            <AccordionItem
-              key="audiences"
-              aria-label="Audiences"
-              title="Audiences"
-            >
-              <AudienceComponent
-                audienceEphemeralId={
-                  diagCommData.audience
-                    ? diagCommData.audience.ephemeral_id
-                    : undefined
-                }
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {diagCommData.pre_condition_states &&
-          diagCommData.pre_condition_states.length > 0 &&
-          stateChartData &&
-          stateChartData.length > 0 ? (
-            <AccordionItem
-              key="preConditionStateRefs"
-              aria-label="Pre-Condition States"
-              title="Pre-Condition States"
-            >
-              <PreConditionStatesComponent
-                preConditionStates={diagCommData.pre_condition_states}
-                stateCharts={stateChartData}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {diagCommData.state_transitions &&
-          diagCommData.state_transitions.length > 0 &&
-          stateChartData &&
-          stateChartData.length > 0 ? (
-            <AccordionItem
-              key="stateTransitions"
-              aria-label="State Transitions"
-              title="State Transitions"
-            >
-              <StateTransitionsComponent
-                stateCharts={stateChartData}
-                stateTransitions={diagCommData.state_transitions}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {diagCommData.protocols && diagCommData.protocols.length > 0 ? (
-            <AccordionItem
-              key="protocols"
-              aria-label="Protocols"
-              title="Protocols"
-            >
-              <ProtocolsComponent
-                protocols={diagCommData.protocols}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-          {diagCommData.related_diag_comm_refs &&
-          diagCommData.related_diag_comm_refs.length > 0 ? (
-            <AccordionItem
-              key="relatedDiagComms"
-              aria-label="Related Diagnostic Communications"
-              title="Related Diagnostic Communications"
-            >
-              <RelatedDiagCommsComponent
-                relDiagCommRefs={diagCommData.related_diag_comm_refs}
-                targetObjectIds={targetObjectIds}
-              />
-            </AccordionItem>
-          ) : (
-            <></>
-          )}
-        </Accordion>
+            {isSingleEcuJob(diagCommData) &&
+            diagCommData.prog_codes &&
+            diagCommData.prog_codes.length > 0 ? (
+              <AccordionItem
+                key="progCodes"
+                aria-label="Program Codes"
+                title="Program Codes"
+              >
+                <ProgramCodesComponent
+                  progCodes={diagCommData.prog_codes}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isDiagService(diagCommData) && diagCommData.request ? (
+              <AccordionItem key="request" aria-label="Request" title="Request">
+                <RequestComponent
+                  pageId={pageId}
+                  request={diagCommData.request}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isSingleEcuJob(diagCommData) &&
+            diagCommData.input_params &&
+            diagCommData.input_params.length > 0 ? (
+              <AccordionItem
+                key="inputParams"
+                aria-label="Input Parameters"
+                title="Input Parameters"
+              >
+                <InputParametersComponent
+                  params={diagCommData.input_params}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isDiagService(diagCommData) &&
+            diagCommData.positive_responses &&
+            diagCommData.positive_responses.length > 0 ? (
+              <AccordionItem
+                key="posResponses"
+                aria-label="Positive Responses"
+                title="Positive Responses"
+              >
+                <PosResponsesComponent
+                  pageId={pageId}
+                  posResponses={diagCommData.positive_responses}
+                  targetObjectIds={targetObjectIds}
+                  triggeringRequest={diagCommData.request}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isSingleEcuJob(diagCommData) &&
+            diagCommData.output_params &&
+            diagCommData.output_params.length > 0 ? (
+              <AccordionItem
+                key="outputParams"
+                aria-label="Output Parameters"
+                title="Output Parameters"
+              >
+                <OutputParametersComponent
+                  params={diagCommData.output_params}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isSingleEcuJob(diagCommData) &&
+            diagCommData.neg_output_params &&
+            diagCommData.neg_output_params.length > 0 ? (
+              <AccordionItem
+                key="negOutParams"
+                aria-label="Negative Output Parameters"
+                title="Negative Output Parameters"
+              >
+                <NegativeOutputParametersComponent
+                  params={diagCommData.neg_output_params}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isDiagService(diagCommData) &&
+            diagCommData.pos_response_suppressible ? (
+              <AccordionItem
+                key="posResponses"
+                aria-label="Positive Response Suppressible"
+                title="Positive Response Suppressible"
+              >
+                <PosResponseSuppressibleComponent
+                  posRspSup={diagCommData.pos_response_suppressible}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isDiagService(diagCommData) &&
+            diagCommData.negative_responses &&
+            diagCommData.negative_responses.length > 0 ? (
+              <AccordionItem
+                key="negResponses"
+                aria-label="Negative Responses"
+                title="Negative Responses"
+              >
+                <NegResponsesComponent
+                  negResponses={diagCommData.negative_responses}
+                  pageId={pageId}
+                  targetObjectIds={targetObjectIds}
+                  triggeringRequest={diagCommData.request}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {isDiagService(diagCommData) &&
+            diagCommData.comparams &&
+            diagCommData.comparams.length > 0 ? (
+              <AccordionItem
+                key="commParams"
+                aria-label="Communication Parameters"
+                title="Communication Parameters"
+              >
+                <ComparamInstancesComponent
+                  comparams={diagCommData.comparams}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {diagCommData.audience ? (
+              <AccordionItem
+                key="audiences"
+                aria-label="Audiences"
+                title="Audiences"
+              >
+                <AudienceComponent
+                  audienceEphemeralId={
+                    diagCommData.audience
+                      ? diagCommData.audience.ephemeral_id
+                      : undefined
+                  }
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {diagCommData.pre_condition_states &&
+            diagCommData.pre_condition_states.length > 0 &&
+            stateChartData &&
+            stateChartData.length > 0 ? (
+              <AccordionItem
+                key="preConditionStateRefs"
+                aria-label="Pre-Condition States"
+                title="Pre-Condition States"
+              >
+                <PreConditionStatesComponent
+                  preConditionStates={diagCommData.pre_condition_states}
+                  stateCharts={stateChartData}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {diagCommData.state_transitions &&
+            diagCommData.state_transitions.length > 0 &&
+            stateChartData &&
+            stateChartData.length > 0 ? (
+              <AccordionItem
+                key="stateTransitions"
+                aria-label="State Transitions"
+                title="State Transitions"
+              >
+                <StateTransitionsComponent
+                  stateCharts={stateChartData}
+                  stateTransitions={diagCommData.state_transitions}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {diagCommData.protocols && diagCommData.protocols.length > 0 ? (
+              <AccordionItem
+                key="protocols"
+                aria-label="Protocols"
+                title="Protocols"
+              >
+                <ProtocolsComponent
+                  protocols={diagCommData.protocols}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+            {diagCommData.related_diag_comm_refs &&
+            diagCommData.related_diag_comm_refs.length > 0 ? (
+              <AccordionItem
+                key="relatedDiagComms"
+                aria-label="Related Diagnostic Communications"
+                title="Related Diagnostic Communications"
+              >
+                <RelatedDiagCommsComponent
+                  relDiagCommRefs={diagCommData.related_diag_comm_refs}
+                  targetObjectIds={targetObjectIds}
+                />
+              </AccordionItem>
+            ) : (
+              <></>
+            )}
+          </Accordion>
+        </MessageValueStoreProvider>
       </div>
     ) : (
       <CircularProgress aria-label="Loading..." />
