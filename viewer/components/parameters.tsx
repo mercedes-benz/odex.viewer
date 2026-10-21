@@ -1502,7 +1502,50 @@ function DopRefPopoverWithPreview({
   )
 }
 
-function DopCompactPreview({ dopEphemeralId }: { dopEphemeralId: number }) {
+export function DopStructureSummary({
+  dopEphemeralId,
+}: {
+  dopEphemeralId: number
+}) {
+  const dopCache = React.useRef(new Map<number, Promise<DopBase | undefined>>())
+  const previewStore = React.useMemo<ParameterValueStore>(
+    () => ({
+      getValue: () => undefined,
+      setValue: () => undefined,
+      subscribe: () => () => undefined,
+      loadDop: (ephemeralId) => {
+        let pendingDop = dopCache.current.get(ephemeralId)
+
+        if (pendingDop === undefined) {
+          pendingDop = fetchDop(ephemeralId).catch(() => undefined)
+          dopCache.current.set(ephemeralId, pendingDop)
+        }
+
+        return pendingDop
+      },
+    }),
+    []
+  )
+
+  return (
+    <section
+      aria-label="DOP structure summary"
+      className="flex w-full min-w-0 flex-col items-start gap-2 text-left"
+    >
+      <ParameterValueStoreContext.Provider value={previewStore}>
+        <DopCompactPreview dopEphemeralId={dopEphemeralId} title={undefined} />
+      </ParameterValueStoreContext.Provider>
+    </section>
+  )
+}
+
+function DopCompactPreview({
+  dopEphemeralId,
+  title = 'DOP Preview',
+}: {
+  dopEphemeralId: number
+  title?: string
+}) {
   const tableStore = useParameterValueStore()
   const { dop, isLoading } = useDop(dopEphemeralId)
   const previewStore = React.useMemo<ParameterValueStore>(() => {
@@ -1532,15 +1575,17 @@ function DopCompactPreview({ dopEphemeralId }: { dopEphemeralId: number }) {
   if (dop === undefined) return null
 
   return (
-    <div className="flex flex-col gap-2">
-      <h4 className="text-sm font-bold">DOP Preview</h4>
+    <div className="flex w-full min-w-0 flex-col items-start gap-2 text-left">
+      {title ? <h4 className="text-sm font-bold">{title}</h4> : null}
       {isDataObjectPropertyDop(dop) ? (
         <DopLeafSummary dop={dop as DataObjectPropertyResolved} />
       ) : isDtcDop(dop) ? (
         <DtcDopPreview dop={dop} />
       ) : isComplexDop(dop) ? (
-        <div className="rounded-medium border border-default-200 bg-default-50 p-3 dark:bg-default-100/5">
-          <h5 className="mb-2 text-sm font-semibold">Structure hierarchy</h5>
+        <div className="w-full min-w-0 rounded-medium border border-default-200 bg-default-50 p-3 text-left dark:bg-default-100/5">
+          <h5 className="mb-2 text-left text-sm font-semibold">
+            Structure hierarchy
+          </h5>
           <ParameterValueStoreContext.Provider value={previewStore}>
             <ValueTreeModeContext.Provider value="structure">
               <DopValueEditor
@@ -1563,35 +1608,35 @@ function DopLeafSummary({ dop }: { dop: DataObjectPropertyResolved }) {
   const dataType = dop.physical_type?.base_data_type
 
   return (
-    <div className="grid grid-cols-[110px_minmax(100px,_1fr)] gap-x-2 gap-y-1 text-sm">
+    <div className="grid min-w-0 grid-cols-[110px_minmax(0,_1fr)] gap-x-2 gap-y-1 text-sm">
       {dop.short_name ? (
         <>
           <p className="font-medium">DOP:</p>
-          <p>{dop.short_name}</p>
+          <p className="min-w-0 break-words">{dop.short_name}</p>
         </>
       ) : null}
       {dataType ? (
         <>
           <p className="font-medium">Physical type:</p>
-          <p>{dataType}</p>
+          <p className="min-w-0 break-words">{dataType}</p>
         </>
       ) : null}
       {dop.compu_method?.category ? (
         <>
           <p className="font-medium">Compu method:</p>
-          <p>{dop.compu_method.category}</p>
+          <p className="min-w-0 break-words">{dop.compu_method.category}</p>
         </>
       ) : null}
       {unit ? (
         <>
           <p className="font-medium">Unit:</p>
-          <p>{unit}</p>
+          <p className="min-w-0 break-words">{unit}</p>
         </>
       ) : null}
       {inputSpec ? (
         <>
           <p className="font-medium">Value guidance:</p>
-          <div>
+          <div className="min-w-0 break-words">
             {inputSpec.kind === 'select' ? (
               <ul className="list-disc pl-4">
                 {inputSpec.options.map((option) => (
@@ -1652,26 +1697,26 @@ function DtcDopPreview({ dop }: { dop: DtcDop }) {
   const dtcs = dop.dtcs ?? []
 
   return (
-    <div className="flex flex-col gap-2 text-sm">
-      <p className="font-medium">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-2 text-sm">
+      <p className="break-words font-medium">
         {dop.short_name ?? 'DtcDop'}: {dtcs.length} DTCs
       </p>
       {dtcs.length === 0 ? (
         <p>No DTCs defined</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="w-full min-w-0 max-w-full overflow-x-auto">
           <table
             aria-label={`DTCs in ${dop.short_name ?? 'DtcDop'}`}
-            className="w-full text-left text-sm"
+            className="w-full table-fixed text-left text-sm"
           >
             <thead>
               <tr className="border-b border-default-200">
-                <th className="p-2 font-medium">Trouble code</th>
-                <th className="p-2 font-medium">Display code</th>
-                <th className="p-2 font-medium">Name</th>
-                <th className="p-2 font-medium">Text</th>
-                <th className="p-2 font-medium">Level</th>
-                <th className="p-2 font-medium">Temporary</th>
+                <th className="break-words p-2 font-medium">Trouble code</th>
+                <th className="break-words p-2 font-medium">Display code</th>
+                <th className="break-words p-2 font-medium">Name</th>
+                <th className="break-words p-2 font-medium">Text</th>
+                <th className="break-words p-2 font-medium">Level</th>
+                <th className="break-words p-2 font-medium">Temporary</th>
               </tr>
             </thead>
             <tbody>
@@ -1680,25 +1725,27 @@ function DtcDopPreview({ dop }: { dop: DtcDop }) {
                   key={dtc.ephemeral_id ?? dtc.perma_id ?? index}
                   className="border-b border-default-200 align-top last:border-b-0"
                 >
-                  <td className="p-2">
+                  <td className="break-words p-2">
                     {dtc.trouble_code !== undefined
                       ? `${dtc.trouble_code} [${getHexRepresentation(dtc.trouble_code) || '0x0'}]`
                       : 'Not specified'}
                   </td>
-                  <td className="p-2">{dtc.display_trouble_code}</td>
-                  <td className="p-2">
-                    <p className="font-medium">{dtc.short_name}</p>
+                  <td className="break-words p-2">
+                    {dtc.display_trouble_code}
+                  </td>
+                  <td className="break-words p-2">
+                    <p className="break-words font-medium">{dtc.short_name}</p>
                     {dtc.long_name ? <p>{dtc.long_name}</p> : null}
                   </td>
-                  <td className="p-2">
+                  <td className="break-words p-2">
                     <p>{dtc.text?.text}</p>
                     <DescriptionComponent
                       description={dtc.description}
                       initialState="uncollapsed"
                     />
                   </td>
-                  <td className="p-2">{dtc.level}</td>
-                  <td className="p-2">
+                  <td className="break-words p-2">{dtc.level}</td>
+                  <td className="break-words p-2">
                     {dtc.is_temporary === undefined
                       ? 'Not specified'
                       : dtc.is_temporary
@@ -1890,11 +1937,11 @@ function ValueTreeNode({
   }
 
   return (
-    <div className="flex min-w-64 flex-col gap-1">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-1">
       <button
         aria-expanded={isExpanded}
         className={clsx(
-          'flex items-center gap-1 text-left text-sm',
+          'flex min-w-0 max-w-full flex-wrap items-center gap-x-1 gap-y-1 text-left text-sm',
           mode === 'structure'
             ? 'w-full rounded-small border border-default-200 bg-content1 px-2 py-1.5 text-foreground'
             : 'self-start rounded-small px-1 text-primary hover:bg-primary-50 dark:hover:bg-primary-950/30'
@@ -1905,15 +1952,17 @@ function ValueTreeNode({
         <ChevronDownIcon
           className={clsx('transition-transform', !isExpanded && '-rotate-90')}
         />
-        <span className="font-medium">{label}</span>
+        <span className="min-w-0 break-words font-medium">{label}</span>
         {summary ? (
-          <span className="ml-auto text-xs text-default-500">{summary}</span>
+          <span className="ml-auto min-w-0 max-w-full break-words text-left text-xs text-default-500">
+            {summary}
+          </span>
         ) : null}
       </button>
       {isExpanded ? (
         <div
           className={clsx(
-            'ml-2 flex flex-col gap-2 border-l-2 pl-3',
+            'ml-2 flex min-w-0 max-w-full self-stretch flex-col gap-2 border-l-2 pl-3',
             mode === 'structure'
               ? 'border-primary-200 dark:border-primary-800'
               : 'border-default-200'
@@ -2091,7 +2140,7 @@ function StructureValueTree({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex w-full min-w-0 flex-col gap-2">
       {parameters.map((child, index) => {
         const childName = child.short_name ?? `#${index}`
 
@@ -2105,7 +2154,9 @@ function StructureValueTree({
             )}
           >
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-semibold">{childName}</span>
+              <span className="min-w-0 break-words font-semibold">
+                {childName}
+              </span>
               <span className="rounded-small bg-default-100 px-1.5 py-0.5 text-xs text-default-600 dark:bg-default-50/10 dark:text-default-400">
                 {child.class_name}
               </span>
@@ -2117,7 +2168,8 @@ function StructureValueTree({
             </div>
             <div
               className={clsx(
-                mode === 'structure' && 'ml-1 border-l border-default-200 pl-2'
+                mode === 'structure' &&
+                  'ml-1 min-w-0 border-l border-default-200 pl-2'
               )}
             >
               <ParameterValueCell

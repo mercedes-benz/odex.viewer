@@ -100,6 +100,48 @@ test('Check DOPs page - view specific data object property', async ({
   await expect(page.getByText('Metadata')).toBeVisible()
 })
 
+test('Check complex DOP details - compact structure summary', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 720 })
+  await page.goto('/dops')
+
+  const dopLink = page.getByRole('link', {
+    name: 'DTCAndStatusRecords',
+    exact: true,
+  })
+
+  await expect(dopLink).toBeVisible()
+  await dopLink.click()
+
+  const summary = page.getByRole('region', {
+    name: 'DOP structure summary',
+  })
+
+  await expect(summary).toBeVisible()
+  await expect(summary).toContainText('Structure hierarchy')
+  await expect(summary).toContainText('DTCRecord')
+
+  const dtcTable = summary.getByRole('table', { name: /DTCs in/ })
+
+  await expect(dtcTable).toBeVisible()
+  const tableFits = await dtcTable.evaluate(
+    (table) => table.scrollWidth <= table.clientWidth + 1
+  )
+
+  expect(tableFits).toBe(true)
+
+  const layout = await summary.evaluate((element) => ({
+    textAlign: getComputedStyle(element).textAlign,
+    hasHorizontalOverflow: Array.from(element.querySelectorAll('*')).some(
+      (child) => child.scrollWidth > child.clientWidth + 1
+    ),
+  }))
+
+  expect(layout.textAlign).toBe('left')
+  expect(layout.hasHorizontalOverflow).toBe(false)
+})
+
 test('Check DOPs page - column selection', async ({ page }) => {
   await page.goto('/dops')
 

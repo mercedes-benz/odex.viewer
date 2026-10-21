@@ -36,6 +36,7 @@ import {
   DiagnosticVariant,
   useQuery,
   isDataObjectPropertyDop,
+  isComplexDop,
   isDtcDop,
   isMultiplexerDop,
   isStructureDop,
@@ -74,6 +75,7 @@ import {
 } from '@/components/custom-dropdowns'
 import { SearchIcon } from '@/components/icons'
 import { DtcDopDetailsTable } from '@/components/dtcs'
+import { DopStructureSummary } from '@/components/parameters'
 import { DopColumnDefinition } from '@/types'
 import {
   sortItemsBySortDescriptor,
@@ -3304,7 +3306,10 @@ export function DopCompactSummaryComponent({
   const renderDop = React.useCallback(
     (dop: DopUnionType) => {
       return (
-        <div>
+        <div className="w-full min-w-0 text-left">
+          {isComplexDop(dop) && typeof dop.ephemeral_id === 'number' ? (
+            <DopStructureSummary dopEphemeralId={dop.ephemeral_id} />
+          ) : null}
           {isDtcDop(dop) ? (
             <DtcDopDetailsTable
               key={dop.ephemeral_id ?? dop.perma_id}

@@ -19,6 +19,7 @@ import client, {
   DopUnionTypeWithLayerInfo,
   ObjectMetadata,
   UnitResolved,
+  isComplexDop,
   isDataObjectPropertyDop,
   isDtcDop,
   isDynamicEndmarkerFieldDop,
@@ -226,7 +227,9 @@ export default function DopsPage() {
           />
         </div>
         {dopData.dop &&
-        (isDataObjectPropertyDop(dopData.dop) || isDtcDop(dopData.dop)) ? (
+        (isDataObjectPropertyDop(dopData.dop) ||
+          isDtcDop(dopData.dop) ||
+          isComplexDop(dopData.dop)) ? (
           <div className="min-w-4xl pt-5">
             <div className={clsx(subtitle({ class: 'mt-4' }), 'text-start')}>
               Compact Summary
