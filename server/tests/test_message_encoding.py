@@ -235,3 +235,16 @@ def test_encode_and_decode_forward_flips_messages(
     decoded_response = json_dict_from_response(response_decode)
     assert decoded_response["parameter_values"]["num_flips_done"] == 3
     assert decoded_response["parameter_values"]["sault_time"] == 42
+
+    incomplete_request = diag_client.post(
+        f"{codec_path}/{positive_response['perma_id']}/encode",
+        json={
+            "parameter_values": {"sault_time": 42},
+            "request_parameter_values": {"num_flips": 3},
+        },
+    )
+    assert incomplete_request.status_code == 400
+    error = json_dict_from_response(incomplete_request)["exception"]
+    assert "request_parameter_values" in error
+    assert "forward_soberness_check" in error
+    assert "request" in error.lower()

@@ -2881,6 +2881,10 @@ def encode_diagnostic_message(
             exception="request_parameter_values is required when encoding a response message."
         )
 
+    error_context = (
+        "Cannot encode request from parameter_values"
+        if is_request else "Cannot encode response from parameter_values"
+    )
     try:
         values = _encode_message_values(message, parameter_values)
         request: OdxToolsRequest | None = None
@@ -2892,10 +2896,13 @@ def encode_diagnostic_message(
                 return response_codes.default400(
                     exception="Request message is required when encoding a response message."
                 )
+            error_context = "Cannot encode triggering request from request_parameter_values"
             request_values = _encode_message_values(request, request_parameter_values)
             coded_request = request.encode(**request_values)
+            error_context = "Cannot encode response from parameter_values"
             coded_message = message.encode(coded_request=coded_request, **values)
+        error_context = "Cannot decode the encoded message"
         result = _codec_result(message, coded_message, request)
     except (odxtools.exceptions.OdxError, ValueError, TypeError, KeyError, IndexError) as error:
-        return response_codes.default400(exception=error)
+        return response_codes.default400(exception=f"{error_context}: {error}")
     return result, 200, {"Content-Type": "application/json"}

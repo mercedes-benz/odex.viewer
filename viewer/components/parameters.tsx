@@ -1009,10 +1009,6 @@ async function serializeMessageParameters(
       ? `${parentPath}.${parameter.short_name}`
       : getParameterValueKey(parameter)
 
-    const value = messageValueStore.getValue(messageId, path)
-
-    if (value === undefined || value === '') continue
-
     const dopId = parameter.dop_ref?.resolved_object_ephemeral_id
 
     if (dopId === undefined) continue
@@ -1023,9 +1019,8 @@ async function serializeMessageParameters(
       throw new Error(`Could not load the DOP for ${parameter.short_name}.`)
     }
 
-    const serializedValue = await serializeDopValue(
+    const serializedValue = await serializeDopTree(
       dop,
-      value,
       messageId,
       path,
       messageValueStore,
@@ -1041,13 +1036,15 @@ async function serializeMessageParameters(
 
 async function serializeDopValue(
   dop: DopBase,
-  value: AtomicParameterValue,
+  value: AtomicParameterValue | undefined,
   messageId: string,
   path: string,
   messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
   valueStore: ParameterValueStore
 ): Promise<unknown> {
   if (isDtcDop(dop)) {
+    if (value === undefined || value === '') return undefined
+
     const code = Number(value)
 
     if (!Number.isInteger(code))
@@ -1057,6 +1054,8 @@ async function serializeDopValue(
   }
 
   if (isDataObjectPropertyDop(dop)) {
+    if (value === undefined || value === '') return undefined
+
     const inputSpec = getParameterValueInputSpec(dop)
 
     if (inputSpec?.kind === 'number') {
@@ -1231,28 +1230,16 @@ async function serializeDopTree(
   messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
   valueStore: ParameterValueStore
 ): Promise<unknown> {
-  if (isBasicStructureDop(dop)) {
-    return serializeMessageParameters(
-      (dop.parameters ?? []) as ParameterUnionType[],
-      messageId,
-      path,
-      messageValueStore,
-      valueStore
-    )
-  }
-
   const value = messageValueStore.getValue(messageId, path)
 
-  return value === undefined || value === ''
-    ? undefined
-    : serializeDopValue(
-        dop,
-        value,
-        messageId,
-        path,
-        messageValueStore,
-        valueStore
-      )
+  return serializeDopValue(
+    dop,
+    value,
+    messageId,
+    path,
+    messageValueStore,
+    valueStore
+  )
 }
 
 async function hydrateMessageParameters(

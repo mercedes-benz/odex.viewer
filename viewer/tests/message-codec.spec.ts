@@ -98,3 +98,57 @@ test('encode and decode request and response parameter values', async ({
     '42'
   )
 })
+
+test('re-encode decoded repeated response values', async ({ page }) => {
+  await page.goto(
+    '/diagnostic-comm?objectId=5b4d00a8d1ba6f53b3a47231600cb2f6&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
+  )
+
+  const requestSection = page.getByRole('region', {
+    name: 'Request',
+    exact: true,
+  })
+  const requestCodec = requestSection.getByRole('region', {
+    name: 'Diagnostic message codec',
+  })
+
+  await requestCodec.getByRole('tab', { name: 'Decode' }).click()
+  await requestCodec.getByLabel('Hex message to decode').fill('19 02 00')
+  await requestCodec.getByRole('button', { name: 'Decode message' }).click()
+  await expect(requestCodec.getByRole('alert')).toHaveCount(0)
+  await expect(
+    requestSection.getByLabel('Value for TestFailed', { exact: true })
+  ).toBeVisible()
+
+  const responseSection = page.getByRole('region', {
+    name: 'Positive Responses',
+    exact: true,
+  })
+  const responseCodec = responseSection.getByRole('region', {
+    name: 'Diagnostic message codec',
+  })
+  const hexMessage = '59 02 00 00 10 01 29'
+
+  await responseCodec.getByRole('tab', { name: 'Decode' }).click()
+  await responseCodec.getByLabel('Hex message to decode').fill(hexMessage)
+  await responseCodec.getByRole('button', { name: 'Decode message' }).click()
+  await expect(
+    responseCodec.getByTestId('decoded-values-summary')
+  ).toContainText('Updated')
+
+  await responseCodec.getByRole('tab', { name: 'Encode' }).click()
+  const encoding = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' && request.url().endsWith('/encode')
+  )
+
+  await responseCodec.getByRole('button', { name: 'Encode message' }).click()
+  const payload = (await encoding).postDataJSON()
+
+  expect(payload.parameter_values.DTCAndStatusRecord).toEqual([
+    expect.objectContaining({ DTCRecord: 4097 }),
+  ])
+  await expect(responseCodec.getByTestId('message-codec-hex')).toHaveText(
+    hexMessage
+  )
+})
