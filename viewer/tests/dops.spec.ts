@@ -104,15 +104,9 @@ test('Check complex DOP details - compact structure summary', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 900, height: 720 })
-  await page.goto('/dops')
-
-  const dopLink = page.getByRole('link', {
-    name: 'DTCAndStatusRecords',
-    exact: true,
-  })
-
-  await expect(dopLink).toBeVisible()
-  await dopLink.click()
+  await page.goto(
+    '/dops?objectId=02c8357c9399a4517e21becf94d4356e&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
+  )
 
   const summary = page.getByRole('region', {
     name: 'DOP structure summary',
@@ -120,6 +114,12 @@ test('Check complex DOP details - compact structure summary', async ({
 
   await expect(summary).toBeVisible()
   await expect(summary).toContainText('Structure hierarchy')
+  const toggle = summary.getByRole('button', {
+    name: 'Toggle [item] DTCAndStatusRecord',
+    exact: true,
+  })
+
+  await toggle.click()
   await expect(summary).toContainText('DTCRecord')
 
   const dtcTable = summary.getByRole('table', { name: /DTCs in/ })
@@ -140,6 +140,35 @@ test('Check complex DOP details - compact structure summary', async ({
 
   expect(layout.textAlign).toBe('left')
   expect(layout.hasHorizontalOverflow).toBe(false)
+
+  const currentUrl = new URL(page.url())
+  const structureLink = summary.getByRole('link', {
+    name: '[item] DTCAndStatusRecord',
+    exact: true,
+  })
+  const structureUrl = new URL(
+    (await structureLink.getAttribute('href'))!,
+    page.url()
+  )
+
+  expect(structureUrl.pathname).toBe('/dops')
+  expect(structureUrl.searchParams.get('objectId')).toBeTruthy()
+  expect(structureUrl.searchParams.get('variantId')).toBe(
+    currentUrl.searchParams.get('variantId')
+  )
+  expect(structureUrl.searchParams.get('containerId')).toBe(
+    currentUrl.searchParams.get('containerId')
+  )
+  await expect(summary.locator('button a')).toHaveCount(0)
+
+  await toggle.click()
+  await expect(dtcTable).toHaveCount(0)
+  await toggle.click()
+  await expect(dtcTable).toBeVisible()
+  await structureLink.click()
+  await expect(
+    page.getByRole('heading', { name: 'DTCAndStatusRecord', exact: true })
+  ).toBeVisible()
 })
 
 test('Check DOPs page - column selection', async ({ page }) => {

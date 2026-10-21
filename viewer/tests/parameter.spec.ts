@@ -78,6 +78,26 @@ test('DtcDop selection and preview', async ({ page }) => {
   await expect(preview.getByText('DTC_1001', { exact: true })).toBeVisible()
   await expect(preview.getByText('DTC_1002', { exact: true })).toBeVisible()
   await expect(preview.getByText('Motor malfunction.')).toBeVisible()
+
+  const dopLabel = dialog.getByRole('link', {
+    name: 'dtc_dop_all',
+    exact: true,
+  })
+  const currentUrl = new URL(page.url())
+  const targetUrl = new URL((await dopLabel.getAttribute('href'))!, page.url())
+
+  expect(targetUrl.pathname).toBe('/dops')
+  expect(targetUrl.searchParams.get('objectId')).toBeTruthy()
+  expect(targetUrl.searchParams.get('variantId')).toBe(
+    currentUrl.searchParams.get('variantId')
+  )
+  expect(targetUrl.searchParams.get('containerId')).toBe(
+    currentUrl.searchParams.get('containerId')
+  )
+  await dopLabel.press('Enter')
+  await expect(
+    page.getByRole('heading', { name: 'dtc_dop_all', exact: true })
+  ).toBeVisible()
 })
 
 test('Accordion search accepts typing on the first click', async ({ page }) => {

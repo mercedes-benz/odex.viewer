@@ -75,7 +75,7 @@ import {
 } from '@/components/custom-dropdowns'
 import { SearchIcon } from '@/components/icons'
 import { DtcDopDetailsTable } from '@/components/dtcs'
-import { DopStructureSummary } from '@/components/parameters'
+import { DopStructureSummary } from '@/components/dop-preview'
 import { DopColumnDefinition } from '@/types'
 import {
   sortItemsBySortDescriptor,

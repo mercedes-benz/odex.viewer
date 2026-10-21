@@ -212,7 +212,7 @@ export function DiagnosticMessageCodecControls({
   return (
     <section
       aria-label="Diagnostic message codec"
-      className="mb-4 flex w-full flex-col items-start gap-3 border-b border-default-200 pb-4 text-left"
+      className="flex w-full flex-col items-start gap-3 text-left"
       data-testid="message-codec"
     >
       <Tabs
