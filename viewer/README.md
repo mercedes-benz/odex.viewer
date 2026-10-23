@@ -13,7 +13,7 @@ You can verify your node.js version using the following command:
 node --version
 ```
 
-For the odex.viewer user interface to be useful, an instance of the **odex.viewer backend server** is required to be running on your local machine. See the server's [README.md](./../server/README.md) for more details on how to setup and run such an instance.
+For the odex.viewer user interface to be useful, an instance of the **odex.viewer backend server** is required to be running on your local machine. See the server's [README.md](../server/README.md) for more details on how to setup and run such an instance.
 
 ### List of Recommended/Tested Versions of All Requirements
 
@@ -41,7 +41,7 @@ cd $ODEX_VIEWER_DIR/viewer; npm run dev
 You can then use the viewer via your web browser by opening [http://localhost:3000](http://localhost:3000).
 
 As an alternative, one of the provided vscode [launch configurations](../.vscode/launch.json) can be used for starting and debugging the viewer.
-Further information about the the provided launch configurations can be found in the project [README.md](../README.md#launch-configurations-for-vscode).
+Further information about the the provided launch configurations can be found in the project [README.md](../README.md#launch-configurations-for-visual-studio-code).
 
 ## Tests
 
@@ -150,7 +150,7 @@ You can then open the viewer in your browser with the following URL: [http://loc
 
 ## Dockerized Setup
 
-The odex.viewer can also be containerized using Docker. Details and further instructions can be found in the global project [README.md](./../README.md#dockerized-setup).
+The odex.viewer can also be containerized using Docker. Details and further instructions can be found in the global project [README.md](../README.md#containerized-setup-using-docker).
 
 ## OpenAPI-based API Communication/Integration
 
