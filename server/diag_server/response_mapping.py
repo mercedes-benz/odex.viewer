@@ -16,7 +16,6 @@ import odxtools.diagcomm
 import odxtools.exceptions
 from connexion.lifecycle import ConnexionResponse
 from odxtools.basevariantpattern import BaseVariantPattern as OdxToolsBaseVariantPattern
-from odxtools.decodestate import DecodeState as OdxToolsDecodeState
 from odxtools.diaglayercontainer import DiagLayerContainer as OdxToolsDiagLayerContainer
 from odxtools.diaglayers.basevariant import BaseVariant as OdxToolsBaseVariant
 from odxtools.diaglayers.diaglayer import DiagLayer as OdxToolsDiagLayer
@@ -29,9 +28,6 @@ from odxtools.dtcdop import DtcDop as OdxToolsDtcDop
 from odxtools.ecuvariantpattern import EcuVariantPattern as OdxToolsEcuVariantPattern
 from odxtools.odxlink import resolve_snref
 from odxtools.odxtypes import DataType
-from odxtools.parameters.matchingrequestparameter import (
-    MatchingRequestParameter as OdxToolsMatchingRequestParameter,
-)
 from odxtools.parameters.parameter import Parameter as OdxToolsParameter
 from odxtools.request import Request as OdxToolsRequest
 from odxtools.response import Response as OdxToolsResponse
@@ -2599,7 +2595,10 @@ def _get_diagnostic_codec_context(
     variant_perma_id: str,
     diag_comm_perma_id: str,
     message_perma_id: str,
-) -> tuple[DatabaseWithID, OdxToolsDiagService, OdxToolsRequest | OdxToolsResponse, bool] | ConnexionResponse:
+) -> (
+    tuple[DatabaseWithID, OdxToolsDiagService, OdxToolsRequest | OdxToolsResponse, bool]
+    | ConnexionResponse
+):
     if diag_data_set_id not in perma_id_dicts:
         return response_codes.default404(
             exception=f"A diagnostic data set with the given id '{diag_data_set_id}' is not found."
@@ -2638,7 +2637,9 @@ def _get_diagnostic_codec_context(
     request = diag_comm.request
     positive_responses = diag_comm.positive_responses
     negative_responses = diag_comm.negative_responses
-    messages : list[tuple[OdxToolsRequest | OdxToolsResponse, bool]] = [(request, True)] if request is not None else []
+    messages: list[tuple[OdxToolsRequest | OdxToolsResponse, bool]] = (
+        [(request, True)] if request is not None else []
+    )
     messages.extend((item, False) for item in chain(positive_responses, negative_responses))
     selected_message = next(
         (item for item, _ in messages if get_perma_id(item) == message_perma_id), None
@@ -2684,9 +2685,7 @@ def _encode_nested_value(value: Any, dop: Any) -> Any:
     if isinstance(value, list):
         cases = getattr(dop, "cases", None) or getattr(dop, "table_rows", None) or []
         if len(value) == 2 and isinstance(value[0], str) and cases:
-            selected_case = next(
-                (case for case in cases if case.short_name == value[0]), None
-            )
+            selected_case = next((case for case in cases if case.short_name == value[0]), None)
             case_structure = getattr(selected_case, "structure", None)
             return (
                 value[0],
@@ -2731,10 +2730,6 @@ def _codec_result(
     request: OdxToolsRequest | None = None,
 ) -> DiagnosticMessageCodecResult:
     decoded_values = message.decode(coded_message)
-    if isinstance(decoded_values, dict):
-        _decode_matching_request_values(
-            message, coded_message, request, decoded_values
-        )
     decoded_values = _json_physical_value(decoded_values)
     return DiagnosticMessageCodecResult(
         hex_message=bytes(coded_message).hex(" ").upper(),
@@ -2744,51 +2739,6 @@ def _codec_result(
             for item in trace_message_layout(message, coded_message)
         ],
     )
-
-
-def _decode_matching_request_values(
-    response: Any,
-    coded_message: bytes | bytearray,
-    request: OdxToolsRequest | None,
-    decoded_values: dict[str, Any],
-) -> None:
-    if request is None:
-        return
-
-    # WORKAROUND: Remove after the odxtools byte-order fix is released and required.
-    for matching_parameter in response.parameters:
-        if (
-            not isinstance(matching_parameter, OdxToolsMatchingRequestParameter)
-            or matching_parameter.short_name not in decoded_values
-            or matching_parameter.byte_position is None
-            or matching_parameter.bit_position not in (None, 0)
-        ):
-            continue
-
-        request_parameter = next(
-            (
-                parameter
-                for parameter in request.parameters
-                if parameter.byte_position
-                == matching_parameter.request_byte_position
-                and parameter.bit_position in (None, 0)
-                and parameter.get_static_bit_length()
-                == matching_parameter.byte_length * 8
-            ),
-            None,
-        )
-        if request_parameter is None:
-            continue
-
-        decode_state = OdxToolsDecodeState(
-            coded_message=bytes(coded_message),
-            origin_byte_position=(
-                matching_parameter.byte_position - matching_parameter.request_byte_position
-            ),
-        )
-        decoded_values[matching_parameter.short_name] = request_parameter.decode_from_pdu(
-            decode_state
-        )
 
 
 def decode_diagnostic_message(
@@ -2826,7 +2776,9 @@ def decode_diagnostic_message(
     _, diag_comm, message, is_request = context
     hex_message = _codec_input_value(decode_diagnostic_message_input, "hex_message")
     if not isinstance(hex_message, str) or not _DIAGNOSTIC_HEX_PATTERN.fullmatch(hex_message):
-        return response_codes.default400(exception="hex_message must contain complete hexadecimal byte pairs.")
+        return response_codes.default400(
+            exception="hex_message must contain complete hexadecimal byte pairs."
+        )
 
     try:
         coded_message = bytes.fromhex(hex_message)
@@ -2889,7 +2841,8 @@ def encode_diagnostic_message(
 
     error_context = (
         "Cannot encode request from parameter_values"
-        if is_request else "Cannot encode response from parameter_values"
+        if is_request
+        else "Cannot encode response from parameter_values"
     )
     try:
         values = _encode_message_values(message, parameter_values)

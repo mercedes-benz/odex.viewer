@@ -34,7 +34,7 @@ classifiers = [
 ]
 dependencies = [
     "connexion[swagger-ui,uvicorn,flask]~=3.1.0",
-    "odxtools>=11.0.2",
+    "odxtools>=11.7.1",
     "python-dateutil",
 ]
 
