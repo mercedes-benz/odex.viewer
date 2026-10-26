@@ -133,13 +133,24 @@ test('Check complex DOP details - compact structure summary', async ({
 
   const layout = await summary.evaluate((element) => ({
     textAlign: getComputedStyle(element).textAlign,
-    hasHorizontalOverflow: Array.from(element.querySelectorAll('*')).some(
-      (child) => child.scrollWidth > child.clientWidth + 1
-    ),
+    overflowingElements: Array.from(element.querySelectorAll('*'))
+      .filter(
+        (child) =>
+          child instanceof HTMLElement &&
+          !['inline', 'contents'].includes(getComputedStyle(child).display) &&
+          child.scrollWidth > child.clientWidth + 1
+      )
+      .map((child) => ({
+        tag: child.tagName,
+        className: child.getAttribute('class'),
+        text: child.textContent?.trim().slice(0, 160),
+        clientWidth: child.clientWidth,
+        scrollWidth: child.scrollWidth,
+      })),
   }))
 
   expect(layout.textAlign).toBe('left')
-  expect(layout.hasHorizontalOverflow).toBe(false)
+  expect(layout.overflowingElements).toEqual([])
 
   const currentUrl = new URL(page.url())
   const structureLink = summary.getByRole('link', {

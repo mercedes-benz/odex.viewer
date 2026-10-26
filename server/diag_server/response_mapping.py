@@ -40,6 +40,7 @@ from werkzeug.datastructures import FileStorage
 
 from diag_server import const, model_utils, odx_util, response_codes
 from diag_server.globals import logger
+from diag_server.message_layout import trace_message_layout
 from diag_server.model_utils import (
     get_diag_data_set_perma_id,
     get_perma_id,
@@ -67,6 +68,7 @@ from diag_server.openapi_server.models import (
     DiagnosticDataTypeCollection,
     DiagnosticLayerContainerInfo,
     DiagnosticMessageCodecResult,
+    DiagnosticParameterLayout,
     DiagnosticVariant,
     DiagnosticVariantsCollection,
     DopBase,
@@ -2737,6 +2739,10 @@ def _codec_result(
     return DiagnosticMessageCodecResult(
         hex_message=bytes(coded_message).hex(" ").upper(),
         parameter_values=decoded_values,
+        parameter_layout=[
+            DiagnosticParameterLayout.from_dict(_json_physical_value(item))
+            for item in trace_message_layout(message, coded_message)
+        ],
     )
 
 

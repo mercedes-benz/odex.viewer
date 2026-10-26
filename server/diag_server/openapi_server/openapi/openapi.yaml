@@ -10676,11 +10676,121 @@ components:
       - hex_message
       title: DecodeDiagnosticMessageInput
       type: object
+    DiagnosticBitRange:
+      example:
+        start_bit: 0
+        bit_length: 1
+      properties:
+        start_bit:
+          description: Absolute wire-order bit offset; bit zero is byte zero's most
+            significant bit.
+          minimum: 0
+          title: start_bit
+          type: integer
+        bit_length:
+          minimum: 1
+          title: bit_length
+          type: integer
+      required:
+      - bit_length
+      - start_bit
+      title: DiagnosticBitRange
+      type: object
+    DiagnosticParameterLayout:
+      example:
+        path: path
+        physical_value: ""
+        node_type: node_type
+        related_parameter_path: related_parameter_path
+        ranges:
+        - start_bit: 0
+          bit_length: 1
+        - start_bit: 0
+          bit_length: 1
+        parent_path: parent_path
+        short_name: short_name
+        dop_type: dop_type
+        parameter_type: parameter_type
+      properties:
+        path:
+          description: "Unique decoder node path. Field items use zero-based indices.\
+            \ Containment is defined by parent_path, not by parsing this path."
+          title: path
+          type: string
+        parent_path:
+          description: Path of the containing layout node; null for message-level
+            parameters.
+          nullable: true
+          title: parent_path
+          type: string
+        node_type:
+          description: "Decoder role, such as parameter, item, case, row, environment_data,\
+            \ switch_key, length, end_marker, dop, or value."
+          title: node_type
+          type: string
+        dop_type:
+          description: Actual ODX DOP class used to decode this node.
+          nullable: true
+          title: dop_type
+          type: string
+        related_parameter_path:
+          description: "Path of the switch key, table key, or DTC parameter selecting\
+            \ this node."
+          nullable: true
+          title: related_parameter_path
+          type: string
+        short_name:
+          title: short_name
+          type: string
+        parameter_type:
+          title: parameter_type
+          type: string
+        physical_value:
+          title: physical_value
+        ranges:
+          items:
+            $ref: '#/components/schemas/DiagnosticBitRange'
+          title: ranges
+          type: array
+      required:
+      - parameter_type
+      - path
+      - ranges
+      - short_name
+      title: DiagnosticParameterLayout
+      type: object
     DiagnosticMessageCodecResult:
       description: "Normalized message bytes and physical values for the selected\
         \ message, not the triggering request. Values follow DiagnosticParameterValues."
       example:
         hex_message: 19 02 01
+        parameter_layout:
+        - path: path
+          physical_value: ""
+          node_type: node_type
+          related_parameter_path: related_parameter_path
+          ranges:
+          - start_bit: 0
+            bit_length: 1
+          - start_bit: 0
+            bit_length: 1
+          parent_path: parent_path
+          short_name: short_name
+          dop_type: dop_type
+          parameter_type: parameter_type
+        - path: path
+          physical_value: ""
+          node_type: node_type
+          related_parameter_path: related_parameter_path
+          ranges:
+          - start_bit: 0
+            bit_length: 1
+          - start_bit: 0
+            bit_length: 1
+          parent_path: parent_path
+          short_name: short_name
+          dop_type: dop_type
+          parameter_type: parameter_type
         parameter_values:
           key: ""
       properties:
@@ -10716,8 +10826,16 @@ components:
             \ not automatically be treated as editable values."
           title: parameter_values
           type: object
+        parameter_layout:
+          description: "Actual parameter bit ranges in the selected message, collected\
+            \ using its ODX decoder."
+          items:
+            $ref: '#/components/schemas/DiagnosticParameterLayout'
+          title: parameter_layout
+          type: array
       required:
       - hex_message
+      - parameter_layout
       - parameter_values
       title: DiagnosticMessageCodecResult
       type: object

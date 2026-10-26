@@ -4,9 +4,11 @@ from datetime import date, datetime  # noqa: F401
 from typing import List, Dict  # noqa: F401
 
 from diag_server.openapi_server.models.base_model import Model
+from diag_server.openapi_server.models.diagnostic_parameter_layout import DiagnosticParameterLayout
 import re
 from diag_server.openapi_server import util
 
+from diag_server.openapi_server.models.diagnostic_parameter_layout import DiagnosticParameterLayout  # noqa: E501
 import re  # noqa: E501
 
 class DiagnosticMessageCodecResult(Model):
@@ -15,26 +17,31 @@ class DiagnosticMessageCodecResult(Model):
     Do not edit the class manually.
     """
 
-    def __init__(self, hex_message=None, parameter_values=None):  # noqa: E501
+    def __init__(self, hex_message=None, parameter_values=None, parameter_layout=None):  # noqa: E501
         """DiagnosticMessageCodecResult - a model defined in OpenAPI
 
         :param hex_message: The hex_message of this DiagnosticMessageCodecResult.  # noqa: E501
         :type hex_message: str
         :param parameter_values: The parameter_values of this DiagnosticMessageCodecResult.  # noqa: E501
         :type parameter_values: Dict[str, object]
+        :param parameter_layout: The parameter_layout of this DiagnosticMessageCodecResult.  # noqa: E501
+        :type parameter_layout: List[DiagnosticParameterLayout]
         """
         self.openapi_types = {
             'hex_message': str,
-            'parameter_values': Dict[str, object]
+            'parameter_values': Dict[str, object],
+            'parameter_layout': List[DiagnosticParameterLayout]
         }
 
         self.attribute_map = {
             'hex_message': 'hex_message',
-            'parameter_values': 'parameter_values'
+            'parameter_values': 'parameter_values',
+            'parameter_layout': 'parameter_layout'
         }
 
         self._hex_message = hex_message
         self._parameter_values = parameter_values
+        self._parameter_layout = parameter_layout
 
     @classmethod
     def from_dict(cls, dikt) -> 'DiagnosticMessageCodecResult':
@@ -100,3 +107,28 @@ class DiagnosticMessageCodecResult(Model):
             raise ValueError("Invalid value for `parameter_values`, must not be `None`")  # noqa: E501
 
         self._parameter_values = parameter_values
+
+    @property
+    def parameter_layout(self) -> List[DiagnosticParameterLayout]:
+        """Gets the parameter_layout of this DiagnosticMessageCodecResult.
+
+        Actual parameter bit ranges in the selected message, collected using its ODX decoder.  # noqa: E501
+
+        :return: The parameter_layout of this DiagnosticMessageCodecResult.
+        :rtype: List[DiagnosticParameterLayout]
+        """
+        return self._parameter_layout
+
+    @parameter_layout.setter
+    def parameter_layout(self, parameter_layout: List[DiagnosticParameterLayout]):
+        """Sets the parameter_layout of this DiagnosticMessageCodecResult.
+
+        Actual parameter bit ranges in the selected message, collected using its ODX decoder.  # noqa: E501
+
+        :param parameter_layout: The parameter_layout of this DiagnosticMessageCodecResult.
+        :type parameter_layout: List[DiagnosticParameterLayout]
+        """
+        if parameter_layout is None:
+            raise ValueError("Invalid value for `parameter_layout`, must not be `None`")  # noqa: E501
+
+        self._parameter_layout = parameter_layout

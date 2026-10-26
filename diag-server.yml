@@ -1440,6 +1440,54 @@ components:
       properties:
         hex_message:
           $ref: "#/components/schemas/DiagnosticHexMessage"
+    DiagnosticBitRange:
+      type: object
+      required: 
+        - start_bit
+        - bit_length
+      properties:
+        start_bit:
+          type: integer
+          minimum: 0
+          description: Absolute wire-order bit offset; bit zero is byte zero's most significant bit.
+        bit_length:
+          type: integer
+          minimum: 1
+    DiagnosticParameterLayout:
+      type: object
+      required: 
+        - path
+        - short_name
+        - parameter_type
+        - ranges
+      properties:
+        path:
+          type: string
+          description: Unique decoder node path. Field items use zero-based indices. Containment is defined by parent_path, not by parsing this path.
+        parent_path:
+          type: string
+          nullable: true
+          description: Path of the containing layout node; null for message-level parameters.
+        node_type:
+          type: string
+          description: Decoder role, such as parameter, item, case, row, environment_data, switch_key, length, end_marker, dop, or value.
+        dop_type:
+          type: string
+          nullable: true
+          description: Actual ODX DOP class used to decode this node.
+        related_parameter_path:
+          type: string
+          nullable: true
+          description: Path of the switch key, table key, or DTC parameter selecting this node.
+        short_name:
+          type: string
+        parameter_type:
+          type: string
+        physical_value: {}
+        ranges:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticBitRange"
     DiagnosticMessageCodecResult:
       type: object
       description: >-
@@ -1448,11 +1496,17 @@ components:
       required:
         - hex_message
         - parameter_values
+        - parameter_layout
       properties:
         hex_message:
           $ref: "#/components/schemas/DiagnosticHexMessage"
         parameter_values:
           $ref: "#/components/schemas/DiagnosticParameterValues"
+        parameter_layout:
+          type: array
+          description: Actual parameter bit ranges in the selected message, collected using its ODX decoder.
+          items:
+            $ref: "#/components/schemas/DiagnosticParameterLayout"
   headers:
     LocationHeader:
       description: URL of a newly created resource.

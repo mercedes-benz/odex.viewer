@@ -617,13 +617,13 @@ function ValueTreeNode({
           <button
             aria-expanded={isExpanded}
             aria-label={`Toggle ${label}`}
-            className="shrink-0"
+            className="flex size-4 shrink-0 items-center justify-center p-0"
             type="button"
             onClick={toggleExpanded}
           >
             <ChevronDownIcon
               className={clsx(
-                'transition-transform',
+                'size-4 transition-transform',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -836,7 +836,253 @@ function StructureValueTree({
   path,
   ...position
 }: { parameters: ParameterUnionType[] } & ValueTreePosition) {
+  const store = useParameterValueStore()
   const mode = React.useContext(ValueTreeModeContext)
+  const [linkedMultiplexers, setLinkedMultiplexers] = React.useState<
+    {
+      multiplexer: Multiplexer
+      multiplexerPath: string
+      switchKeyPath: string
+    }[]
+  >([])
+  const [valueRevision, refreshValues] = React.useReducer(
+    (revision: number) => revision + 1,
+    0
+  )
+  const linkedValueStates = React.useRef(
+    new Map<
+      string,
+      {
+        active: boolean
+        previousCase: AtomicParameterValue | undefined
+        previousKey: AtomicParameterValue | undefined
+      }
+    >()
+  )
+
+  React.useEffect(() => store.subscribe(refreshValues), [store])
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    const loadLinkedMultiplexers = async () => {
+      const links = await Promise.all(
+        parameters.map(async (parameter, parameterIndex) => {
+          if (
+            !isParameterTypeWithDopRef(parameter) ||
+            parameter.byte_position === undefined ||
+            parameter.dop_ref?.resolved_object_ephemeral_id === undefined
+          ) {
+            return undefined
+          }
+
+          const dop = await store.loadDop(
+            parameter.dop_ref.resolved_object_ephemeral_id
+          )
+
+          if (
+            dop === undefined ||
+            !isMultiplexerDop(dop) ||
+            dop.switch_key === undefined
+          ) {
+            return undefined
+          }
+
+          const switchKeyDopId =
+            dop.switch_key.dop_ref?.resolved_object_ephemeral_id
+          const switchKeyBytePosition = dop.switch_key.byte_position
+
+          if (
+            switchKeyDopId === undefined ||
+            switchKeyBytePosition === undefined
+          ) {
+            return undefined
+          }
+
+          const switchKeyBitOffset =
+            (parameter.byte_position + switchKeyBytePosition) * 8 +
+            (parameter.bit_position ?? 0) +
+            (dop.switch_key.bit_position ?? 0)
+          const matchingSiblings = parameters.flatMap(
+            (candidate, candidateIndex) => {
+              if (
+                candidateIndex === parameterIndex ||
+                !isValueParameterType(candidate) ||
+                !isParameterTypeWithDopRef(candidate) ||
+                candidate.byte_position === undefined ||
+                candidate.dop_ref?.resolved_object_ephemeral_id !==
+                  switchKeyDopId ||
+                candidate.byte_position * 8 + (candidate.bit_position ?? 0) !==
+                  switchKeyBitOffset
+              ) {
+                return []
+              }
+
+              return [{ candidate, candidateIndex }]
+            }
+          )
+
+          if (matchingSiblings.length !== 1) return undefined
+
+          const sibling = matchingSiblings[0]
+
+          if (!sibling) return undefined
+
+          const parameterName = parameter.short_name ?? `#${parameterIndex}`
+          const siblingName =
+            sibling.candidate.short_name ?? `#${sibling.candidateIndex}`
+
+          return {
+            multiplexer: dop,
+            multiplexerPath: `${path}.${parameterName}`,
+            switchKeyPath: `${path}.${siblingName}`,
+          }
+        })
+      )
+
+      if (!cancelled) {
+        setLinkedMultiplexers(
+          links.filter(
+            (
+              link
+            ): link is {
+              multiplexer: Multiplexer
+              multiplexerPath: string
+              switchKeyPath: string
+            } => link !== undefined
+          )
+        )
+      }
+    }
+
+    void loadLinkedMultiplexers()
+
+    return () => {
+      cancelled = true
+    }
+  }, [parameters, path, store])
+
+  React.useEffect(() => {
+    for (const link of linkedMultiplexers) {
+      const casePath = `${link.multiplexerPath}#case`
+      const selectedCaseKey = store.getValue(casePath)
+      const switchKeyValue = store.getValue(link.switchKeyPath)
+      const hasSelectedCase =
+        typeof selectedCaseKey === 'string' && selectedCaseKey !== ''
+      const hasSwitchKey = switchKeyValue !== undefined && switchKeyValue !== ''
+      const previous = linkedValueStates.current.get(link.multiplexerPath)
+
+      if (!previous) {
+        const state = {
+          active: hasSelectedCase && hasSwitchKey,
+          previousCase: selectedCaseKey,
+          previousKey: switchKeyValue,
+        }
+
+        linkedValueStates.current.set(link.multiplexerPath, state)
+
+        if (hasSelectedCase !== hasSwitchKey) {
+          const derivedValue = hasSelectedCase
+            ? switchKeyForMultiplexerCase(link.multiplexer, selectedCaseKey)
+            : multiplexerCaseForSwitchKey(link.multiplexer, switchKeyValue)
+
+          if (derivedValue !== undefined) {
+            if (hasSelectedCase) {
+              store.setValue(link.switchKeyPath, derivedValue)
+            } else {
+              store.setValue(casePath, derivedValue)
+            }
+            state.active = true
+          }
+        }
+
+        state.previousCase = store.getValue(casePath)
+        state.previousKey = store.getValue(link.switchKeyPath)
+        continue
+      }
+
+      const caseChanged = selectedCaseKey !== previous.previousCase
+      const keyChanged = switchKeyValue !== previous.previousKey
+
+      if (previous.active) {
+        if (!hasSelectedCase || !hasSwitchKey) {
+          previous.active = false
+        } else if (caseChanged !== keyChanged) {
+          const derivedValue = caseChanged
+            ? switchKeyForMultiplexerCase(link.multiplexer, selectedCaseKey)
+            : multiplexerCaseForSwitchKey(link.multiplexer, switchKeyValue)
+
+          if (derivedValue !== undefined) {
+            if (caseChanged && derivedValue !== switchKeyValue) {
+              store.setValue(link.switchKeyPath, derivedValue)
+            } else if (!caseChanged && derivedValue !== selectedCaseKey) {
+              store.setValue(casePath, derivedValue)
+            }
+          }
+        }
+      } else {
+        const previouslyEmpty =
+          !hasLinkedValue(previous.previousCase) &&
+          !hasLinkedValue(previous.previousKey)
+
+        if (hasSelectedCase && hasSwitchKey) {
+          if (
+            caseChanged &&
+            !keyChanged &&
+            !hasLinkedValue(previous.previousCase)
+          ) {
+            previous.active = true
+
+            const derivedValue = switchKeyForMultiplexerCase(
+              link.multiplexer,
+              selectedCaseKey
+            )
+
+            if (derivedValue !== undefined) {
+              store.setValue(link.switchKeyPath, derivedValue)
+            }
+          } else if (
+            keyChanged &&
+            !caseChanged &&
+            !hasLinkedValue(previous.previousKey)
+          ) {
+            previous.active = true
+
+            const derivedValue = multiplexerCaseForSwitchKey(
+              link.multiplexer,
+              switchKeyValue
+            )
+
+            if (derivedValue !== undefined) {
+              store.setValue(casePath, derivedValue)
+            }
+          } else if (caseChanged && keyChanged) {
+            previous.active = true
+          }
+        } else if (
+          previouslyEmpty &&
+          caseChanged !== keyChanged &&
+          hasSelectedCase !== hasSwitchKey
+        ) {
+          const derivedValue = hasSelectedCase
+            ? switchKeyForMultiplexerCase(link.multiplexer, selectedCaseKey)
+            : multiplexerCaseForSwitchKey(link.multiplexer, switchKeyValue)
+
+          if (derivedValue !== undefined) {
+            if (hasSelectedCase) {
+              store.setValue(link.switchKeyPath, derivedValue)
+            } else {
+              store.setValue(casePath, derivedValue)
+            }
+            previous.active = true
+          }
+        }
+      }
+
+      previous.previousCase = store.getValue(casePath)
+      previous.previousKey = store.getValue(link.switchKeyPath)
+    }
+  }, [linkedMultiplexers, store, valueRevision])
 
   if (parameters.length === 0) {
     return <ValueCellNote>No parameters</ValueCellNote>
@@ -1006,6 +1252,69 @@ function formatCaseRange(muxCase: MultiplexerCase) {
   return upper === undefined || upper === lower
     ? ` (${lower})`
     : ` (${lower}–${upper})`
+}
+
+function numericLimitValue(
+  limit: MultiplexerCase['lower_limit']
+): number | undefined {
+  const rawValue = limit?.value ?? limit?.value_raw
+
+  if (rawValue === undefined || rawValue === '') return undefined
+
+  const value = Number(rawValue)
+
+  return Number.isFinite(value) ? value : undefined
+}
+
+function hasLinkedValue(value: AtomicParameterValue | undefined): boolean {
+  return value !== undefined && value !== ''
+}
+
+function multiplexerCaseForSwitchKey(
+  multiplexer: Multiplexer,
+  switchKeyValue: AtomicParameterValue | undefined
+): string | undefined {
+  if (!hasLinkedValue(switchKeyValue)) return undefined
+
+  const numericKey = Number(switchKeyValue)
+
+  if (!Number.isFinite(numericKey)) return undefined
+
+  const matchingCases = (multiplexer.cases ?? []).filter((muxCase) => {
+    const lower = numericLimitValue(muxCase.lower_limit)
+    const upper = numericLimitValue(muxCase.upper_limit)
+    const matchesLower =
+      lower === undefined ||
+      numericKey > lower ||
+      (numericKey === lower && muxCase.lower_limit?.interval_type !== 'OPEN')
+    const matchesUpper =
+      upper === undefined ||
+      numericKey < upper ||
+      (numericKey === upper && muxCase.upper_limit?.interval_type !== 'OPEN')
+
+    return (
+      (lower !== undefined || upper !== undefined) &&
+      matchesLower &&
+      matchesUpper
+    )
+  })
+
+  return matchingCases.length === 1 ? matchingCases[0]?.short_name : undefined
+}
+
+function switchKeyForMultiplexerCase(
+  multiplexer: Multiplexer,
+  caseKey: AtomicParameterValue | undefined
+): string | undefined {
+  if (typeof caseKey !== 'string' || caseKey === '') return undefined
+
+  const selectedCase = multiplexer.cases?.find(
+    (muxCase) => muxCase.short_name === caseKey
+  )
+  const lower = numericLimitValue(selectedCase?.lower_limit)
+  const upper = numericLimitValue(selectedCase?.upper_limit)
+
+  return lower !== undefined && lower === upper ? lower.toString() : undefined
 }
 
 function MultiplexerValueTree({

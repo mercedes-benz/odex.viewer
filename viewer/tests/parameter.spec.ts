@@ -67,6 +67,9 @@ test('DtcDop selection and preview', async ({ page }) => {
     .click()
 
   const dialog = page.getByRole('dialog')
+
+  await expect(dialog).toBeVisible()
+
   const preview = dialog.getByRole('table', { name: 'DTCs in dtc_dop_all' })
 
   await expect(preview).toBeVisible()
@@ -83,6 +86,9 @@ test('DtcDop selection and preview', async ({ page }) => {
     name: 'dtc_dop_all',
     exact: true,
   })
+
+  await expect(dopLabel).toBeVisible()
+
   const currentUrl = new URL(page.url())
   const targetUrl = new URL((await dopLabel.getAttribute('href'))!, page.url())
 

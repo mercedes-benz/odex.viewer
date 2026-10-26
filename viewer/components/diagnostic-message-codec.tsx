@@ -14,6 +14,14 @@ import client, {
   Response,
 } from '@/api/api-hooks'
 import { DiagnosticCommTargetObjectIds } from '@/types/index'
+import { DiagnosticMessageLayout } from '@/components/diagnostic-message-layout'
+import { ParameterValueTransfer } from '@/components/parameter-value-transfer'
+import {
+  ParameterDocumentReview,
+  ParameterImportMode,
+  PreparedParameterImport,
+  downloadParameterDocument,
+} from '@/utils/parameter-value-documents'
 
 type MessageValue = string | boolean
 
@@ -88,6 +96,8 @@ export function DiagnosticMessageCodecControls({
   triggeringRequest,
   targetObjectIds,
   buildParameterValues,
+  buildParameterTemplate,
+  prepareParameterImport,
   applyDecodedValues,
 }: {
   message: DiagnosticMessage
@@ -97,6 +107,11 @@ export function DiagnosticMessageCodecControls({
   buildParameterValues: (
     message: DiagnosticMessage
   ) => Promise<Record<string, unknown>>
+  buildParameterTemplate: () => Promise<ParameterDocumentReview>
+  prepareParameterImport: (
+    input: unknown,
+    mode: ParameterImportMode
+  ) => Promise<PreparedParameterImport>
   applyDecodedValues: (
     message: DiagnosticMessage,
     values: Record<string, unknown>
@@ -215,6 +230,26 @@ export function DiagnosticMessageCodecControls({
       className="flex w-full flex-col items-start gap-3 text-left"
       data-testid="message-codec"
     >
+      <ParameterValueTransfer
+        buildTemplate={buildParameterTemplate}
+        disabled={pending}
+        loadValues={async () => ({
+          parameter_values: await buildParameterValues(message),
+          ...(messageKind === 'response' && triggeringRequest
+            ? {
+                request_parameter_values:
+                  await buildParameterValues(triggeringRequest),
+              }
+            : {}),
+        })}
+        messageName={message.short_name ?? messageKind}
+        prepareImport={prepareParameterImport}
+        onApplied={() => {
+          setResult(undefined)
+          setError(undefined)
+          setDecodeNotice(undefined)
+        }}
+      />
       <Tabs
         aria-label="Message codec mode"
         className="w-full text-left"
@@ -296,6 +331,25 @@ export function DiagnosticMessageCodecControls({
           className="flex w-full flex-col items-start gap-2 text-left"
           data-testid="message-codec-result"
         >
+          <Button
+            size="sm"
+            startContent={
+              <ArrowDownTrayIcon aria-hidden="true" className="size-4" />
+            }
+            title="Download normalized physical output marked as decoded-output. When imported, constants and derived parameters are reported and excluded from editable table inputs."
+            variant="flat"
+            onPress={() =>
+              downloadParameterDocument(
+                `${message.short_name ?? messageKind}-decoded-values.json`,
+                {
+                  document_kind: 'decoded-output',
+                  parameter_values: activeResult.parameter_values,
+                }
+              )
+            }
+          >
+            Download decoded values
+          </Button>
           {codecMode === 'decode' ? (
             <>
               <span
@@ -344,6 +398,10 @@ export function DiagnosticMessageCodecControls({
               </details>
             </>
           )}
+          <DiagnosticMessageLayout
+            key={`${codecMode}:${activeResult.hex_message}`}
+            result={activeResult}
+          />
         </div>
       ) : null}
     </section>

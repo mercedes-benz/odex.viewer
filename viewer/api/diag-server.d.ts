@@ -920,10 +920,33 @@ export interface components {
     DecodeDiagnosticMessageInput: {
       hex_message: components['schemas']['DiagnosticHexMessage']
     }
+    DiagnosticBitRange: {
+      /** @description Absolute wire-order bit offset; bit zero is byte zero's most significant bit. */
+      start_bit: number
+      bit_length: number
+    }
+    DiagnosticParameterLayout: {
+      /** @description Unique decoder node path. Field items use zero-based indices. Containment is defined by parent_path, not by parsing this path. */
+      path: string
+      /** @description Path of the containing layout node; null for message-level parameters. */
+      parent_path?: string | null
+      /** @description Decoder role, such as parameter, item, case, row, environment_data, switch_key, length, end_marker, dop, or value. */
+      node_type?: string
+      /** @description Actual ODX DOP class used to decode this node. */
+      dop_type?: string | null
+      /** @description Path of the switch key, table key, or DTC parameter selecting this node. */
+      related_parameter_path?: string | null
+      short_name: string
+      parameter_type: string
+      physical_value?: unknown
+      ranges: components['schemas']['DiagnosticBitRange'][]
+    }
     /** @description Normalized message bytes and physical values for the selected message, not the triggering request. Values follow DiagnosticParameterValues. */
     DiagnosticMessageCodecResult: {
       hex_message: components['schemas']['DiagnosticHexMessage']
       parameter_values: components['schemas']['DiagnosticParameterValues']
+      /** @description Actual parameter bit ranges in the selected message, collected using its ODX decoder. */
+      parameter_layout: components['schemas']['DiagnosticParameterLayout'][]
     }
     /** @enum {string} */
     DiagLayerType:

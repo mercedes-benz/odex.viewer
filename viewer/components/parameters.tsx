@@ -87,6 +87,13 @@ import {
   ParameterValueCell,
   getParameterValueKey,
 } from '@/components/dop-preview'
+import {
+  ParameterImportMode,
+  PreparedParameterImport,
+  mergePhysicalValues,
+  parameterDocumentChanges,
+  reviewParameterDocument,
+} from '@/utils/parameter-value-documents'
 
 export function ParametersComponent({
   parentObject,
@@ -152,8 +159,9 @@ export function ParametersComponent({
 
     return {
       getValue: (path) =>
-        (messageId && messageValueStore?.getValue(messageId, path)) ??
-        parameterValues.current[path],
+        messageId && messageValueStore
+          ? messageValueStore.getValue(messageId, path)
+          : parameterValues.current[path],
       setValue: (path, value) => {
         parameterValues.current[path] = value
         if (messageId) messageValueStore?.setValue(messageId, path, value)
@@ -222,6 +230,90 @@ export function ParametersComponent({
     },
     [messageValueStore, valueStore]
   )
+
+  const prepareParameterImport = async (
+    input: unknown,
+    mode: ParameterImportMode
+  ): Promise<PreparedParameterImport> => {
+    if (!messageValueStore) throw new Error('Message values are not available.')
+    const message = parentObject as Request | Response
+    const request = messageKind === 'response' ? triggeringRequest : undefined
+    const review = await reviewParameterDocument(
+      input,
+      message,
+      request,
+      valueStore.loadDop
+    )
+    const updates: {
+      messageId: string
+      values: Record<string, AtomicParameterValue>
+    }[] = []
+    const before: Record<string, unknown> = {}
+    const after: Record<string, unknown> = {}
+
+    for (const [field, target] of [
+      ['parameter_values', message],
+      ['request_parameter_values', request],
+    ] as const) {
+      const incoming = review.document[field]
+
+      if (!target || incoming === undefined) continue
+      if (!target.perma_id)
+        throw new Error(`${field}: message has no permanent ID.`)
+      const current = await buildParameterValues(target)
+      const next =
+        mode === 'merge' ? mergePhysicalValues(current, incoming) : incoming
+      const checked = await reviewParameterDocument(
+        { parameter_values: next },
+        target,
+        undefined,
+        valueStore.loadDop
+      )
+
+      review.errors.push(
+        ...checked.errors.map((error) =>
+          error.replace(/^parameter_values/, field)
+        )
+      )
+      before[field] = current
+      after[field] = checked.document.parameter_values
+      review.document[field] = checked.document.parameter_values
+      const values: Record<string, AtomicParameterValue> = {}
+
+      await hydrateMessageParameters(
+        (target.parameters ?? []) as ParameterUnionType[],
+        checked.document.parameter_values,
+        '',
+        values,
+        valueStore
+      )
+      updates.push({ messageId: target.perma_id, values })
+    }
+
+    return {
+      ...review,
+      errors: Array.from(new Set(review.errors)),
+      changes: parameterDocumentChanges(before, after),
+      apply: () => {
+        if (review.errors.length)
+          throw new Error('Resolve validation errors before importing.')
+        for (const update of updates) {
+          if (update.messageId === messageId)
+            parameterValues.current = { ...update.values }
+          messageValueStore.setValues(update.messageId, update.values)
+        }
+      },
+    }
+  }
+
+  const buildParameterTemplate = async () =>
+    reviewParameterDocument(
+      {},
+      parentObject as Request | Response,
+      messageKind === 'response' ? triggeringRequest : undefined,
+      valueStore.loadDop,
+      true
+    )
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ParameterColumnDefinition[] = [
@@ -949,9 +1041,11 @@ export function ParametersComponent({
           </div>
           <DiagnosticMessageCodecControls
             applyDecodedValues={applyDecodedValues}
+            buildParameterTemplate={buildParameterTemplate}
             buildParameterValues={buildParameterValues}
             message={parentObject as Request | Response}
             messageKind={messageKind}
+            prepareParameterImport={prepareParameterImport}
             targetObjectIds={targetObjectIds as DiagnosticCommTargetObjectIds}
             triggeringRequest={triggeringRequest}
           />
@@ -1030,9 +1124,11 @@ async function serializeDopValue(
   }
 
   if (isDataObjectPropertyDop(dop)) {
-    if (value === undefined || value === '') return undefined
+    if (value === undefined) return undefined
 
     const inputSpec = getParameterValueInputSpec(dop)
+
+    if (value === '' && inputSpec?.kind !== 'text') return undefined
 
     if (inputSpec?.kind === 'number') {
       const numericValue = Number(value)
@@ -1388,6 +1484,43 @@ async function hydrateDopValue(
       structure,
       physicalValue[1],
       `${path}.${caseKey}`,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  if (isEnvironmentDataDescriptionDop(dop) && isRecord(physicalValue)) {
+    const candidates = [
+      ...(dop.env_datas ?? []).map((data, index) => ({
+        key: `inline-${index}`,
+        data: data as DopBase,
+      })),
+    ]
+
+    for (const [index, reference] of Array.from(
+      (dop.env_data_refs ?? []).entries()
+    )) {
+      const id = reference.resolved_object_ephemeral_id
+      const data = id === undefined ? undefined : await valueStore.loadDop(id)
+
+      if (data) candidates.push({ key: `ref-${index}`, data })
+    }
+    const selected = candidates.find(
+      ({ data }) =>
+        isBasicStructureDop(data) &&
+        Object.keys(physicalValue).every((key) =>
+          data.parameters?.some((parameter) => parameter.short_name === key)
+        )
+    )
+
+    if (!selected) return 0
+    hydratedValues[`${path}#envData`] = selected.key
+    hydratedValues[`${path}#expanded`] = true
+
+    return hydrateDopValue(
+      selected.data,
+      physicalValue,
+      `${path}.${selected.data.short_name}`,
       hydratedValues,
       valueStore
     )
