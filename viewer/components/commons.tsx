@@ -659,6 +659,7 @@ export function OdxLinkPopoverComponent({
         content: ['border border-blue-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -826,6 +827,7 @@ export function DiagCodedTypePopoverComponent({
         content: ['border border-blue-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -1210,6 +1212,7 @@ export function PhysicalTypePopoverComponent({
         content: ['border border-lime-600'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -1256,6 +1259,7 @@ export function CompuMethodPopoverComponent({
         content: ['border border-teal-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -1302,6 +1306,7 @@ export function InternalConstraintPopoverComponent({
         content: ['border border-red-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>

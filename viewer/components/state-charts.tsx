@@ -374,7 +374,7 @@ export function StateChartVisualizationComponent(
 export function ReferencingDiagComms(
   state_transition_ref: string,
   state_transitions_with_refs: StateTransitionWithDiagCommRefs[],
-  containerId: number,
+  containerId: string,
   variantId: string
 ) {
   const diag_comm_refs = state_transitions_with_refs.find(
@@ -391,7 +391,7 @@ export function ReferencingDiagComms(
               >
                 {comm.short_name}
               </Link>
-              {', '}
+              {index < diag_comm_refs.length - 1 ? ', ' : ''}
             </React.Fragment>
           ))
         : ''}

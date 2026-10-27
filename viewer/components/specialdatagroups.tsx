@@ -113,12 +113,12 @@ export function SpecialDataGroupsComponent({
                 textValue={
                   entry.sdg_caption
                     ? `${entry.sdg_caption.long_name} (${entry.sdg_caption.short_name})`
-                    : 'unnamed'
+                    : '[unnamed]'
                 }
                 title={
                   entry.sdg_caption
                     ? `${entry.sdg_caption.long_name} (${entry.sdg_caption.short_name})`
-                    : 'unnamed'
+                    : '[unnamed]'
                 }
               >
                 <SpecialDataGroupsComponent

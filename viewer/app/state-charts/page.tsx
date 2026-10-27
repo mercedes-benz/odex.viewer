@@ -369,7 +369,7 @@ export default function StateChartPage() {
                       ReferencingDiagComms(
                         item.perma_id,
                         referencingTransitions,
-                        Number(containerId),
+                        containerId,
                         variantId
                       )
                     ) : (

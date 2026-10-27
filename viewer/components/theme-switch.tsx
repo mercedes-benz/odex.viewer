@@ -19,12 +19,14 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
   className,
   classNames,
 }) => {
-  const { theme, setTheme } = useTheme()
+  const { theme, systemTheme, setTheme } = useTheme()
   const isSSR = useIsSSR()
 
   /* eslint-disable @typescript-eslint/no-unused-expressions */
   const onChange = () => {
-    theme === 'light' ? setTheme('dark') : setTheme('light')
+    theme === 'light' || systemTheme === 'light'
+      ? setTheme('dark')
+      : setTheme('light')
   }
 
   const {
@@ -35,13 +37,14 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
     getInputProps,
     getWrapperProps,
   } = useSwitch({
-    isSelected: theme === 'light' || isSSR,
-    'aria-label': `Switch to ${theme === 'light' || isSSR ? 'dark' : 'light'} mode`,
+    isSelected: theme === 'light' || systemTheme === 'light' || isSSR,
+    'aria-label': `Switch to ${theme === 'light' || systemTheme === 'light' || isSSR ? 'dark' : 'light'} mode`,
     onChange,
   })
 
   return (
     <Component
+      data-testid="theme-switch"
       {...getBaseProps({
         className: clsx(
           'px-px transition-opacity hover:opacity-80 cursor-pointer',

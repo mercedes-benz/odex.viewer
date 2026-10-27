@@ -26,15 +26,21 @@ test('Check settings page', async ({ page }) => {
 test('Check settings page - reset UI state to defaults', async ({ page }) => {
   await page.goto('/settings')
 
-  // Change UI theme to light mode (default is dark mode in tests) and verify the change
-  await page.getByLabel('Switch to light mode').first().click()
-  await expect(page.locator('html')).toHaveClass(/light/)
+  // Read current UI theme from the HTML element's class
+  const currentTheme = await page.locator('html').getAttribute('class')
+
+  // Change UI theme by toggling the theme switch
+  await page.getByTestId('theme-switch').first().click()
+  // Verify that the theme has changed
+  const newTheme = await page.locator('html').getAttribute('class')
+
+  expect(newTheme).not.toBe(currentTheme)
 
   // Reset the theme change
   await page.getByRole('button', { name: 'Reset UI state to defaults' }).click()
 
-  // Check if the theme has been reset to dark mode
-  await expect(page.locator('html')).toHaveClass(/dark/)
+  // Check if the theme has been reset to the original theme
+  await expect(page.locator('html')).toHaveClass(new RegExp(currentTheme || ''))
 
   await expect(page).toHaveURL(/\/settings/)
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
