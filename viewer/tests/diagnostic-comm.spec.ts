@@ -28,9 +28,10 @@ test('Check diagnostic communication page - view specific diagnostic communicati
   await expect(page.getByTestId('diag-comm-title')).toHaveText(
     'Diagnostic Communication'
   )
-  await expect(page.getByTestId('diag-comm-container-name')).toBeVisible()
+
   await expect(page.getByTestId('diag-comm-container-name')).toHaveText(
-    'session_start'
+    'session_start',
+    { timeout: 10000 }
   )
 
   // Check that the accordion is visible
@@ -53,9 +54,9 @@ test('Check diagnostic communication page - column selection', async ({
     page.getByTestId('diagComms-columns-dropdown-entry').first()
   ).toBeVisible()
   // The overview table has 13 total columns which can be toggled on/off in the column selection dropdown
-  expect(
-    await page.getByTestId('diagComms-columns-dropdown-entry').all()
-  ).toHaveLength(13)
+  await expect(
+    page.getByTestId('diagComms-columns-dropdown-entry')
+  ).toHaveCount(13)
 })
 
 test('Check diagnostic communication page - COMM_TYPE filter', async ({
@@ -76,9 +77,7 @@ test('Check diagnostic communication page - COMM_TYPE filter', async ({
   ).toBeVisible()
 
   // Select the "DiagService" value in the dropdown (matches 10 of 11 items)
-  await page
-    .getByTestId('filter-COMM_TYPE-menu-entry-DiagService')
-    .click({ force: true })
+  await page.getByTestId('filter-COMM_TYPE-menu-entry-DiagService').click()
 
   await expect(page.getByText('10 of total 11 diagnostic')).toBeVisible()
 })
@@ -101,9 +100,7 @@ test('Check diagnostic communication page - SEMANTIC filter', async ({
   ).toBeVisible()
 
   // Select the "session" value in the dropdown (matches session_start and session_stop, so 2 of 11 items)
-  await page
-    .getByTestId('filter-SEMANTIC-menu-entry-SESSION')
-    .click({ force: true })
+  await page.getByTestId('filter-SEMANTIC-menu-entry-SESSION').click()
 
   await expect(page.getByText('2 of total 11 diagnostic')).toBeVisible()
 })

@@ -22,7 +22,7 @@ test('Check state charts page - view all state charts', async ({ page }) => {
   // Check that at least one state chart entry is visible
   await expect(stateChartTable.getByRole('row').nth(1)).toBeVisible()
   // Check that the table contains the expected number of rows (1 header row + 2 data rows)
-  expect(await stateChartTable.getByRole('row').all()).toHaveLength(3)
+  await expect(stateChartTable.getByRole('row')).toHaveCount(3)
 })
 
 test('Check state charts page - view specific state chart', async ({
@@ -80,12 +80,13 @@ test('Check state charts page - CONTAINER filter', async ({ page }) => {
   ).toBeVisible()
 
   // Select the "somersault.pdx" value in the dropdown (matches 2 of 2 items)
-  await page
-    .getByTestId('filter-CONTAINER-menu-entry-somersault.pdx')
-    .click({ force: true })
+  await page.getByTestId('filter-CONTAINER-menu-entry-somersault.pdx').click()
+  await expect(
+    page.getByTestId('filter-CONTAINER-menu-entry-somersault.pdx')
+  ).toHaveAttribute('aria-checked', 'true')
 
   // Check that the table contains the expected number of rows (1 header row + 2 data rows)
-  expect(await stateChartTable.getByRole('row').all()).toHaveLength(3)
+  await expect(stateChartTable.getByRole('row')).toHaveCount(3)
 })
 
 test('Check state charts page - USED_IN_VARIANTS filter', async ({ page }) => {
@@ -107,8 +108,11 @@ test('Check state charts page - USED_IN_VARIANTS filter', async ({ page }) => {
   // Select the "somersault_lazy" value in the dropdown (matches 2 of 2 items)
   await page
     .getByTestId('filter-USED_IN_VARIANTS-menu-entry-somersault_lazy')
-    .click({ force: true })
+    .click()
+  await expect(
+    page.getByTestId('filter-USED_IN_VARIANTS-menu-entry-somersault_lazy')
+  ).toHaveAttribute('aria-checked', 'true')
 
   // Check that the table contains the expected number of rows (1 header row + 2 data rows)
-  expect(await stateChartTable.getByRole('row').all()).toHaveLength(3)
+  await expect(stateChartTable.getByRole('row')).toHaveCount(3)
 })

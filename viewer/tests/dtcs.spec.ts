@@ -17,7 +17,7 @@ test('Check DTCs page - view all diagnostic trouble codes', async ({
   await expect(dtcTable).toBeVisible()
   await expect(dtcTable.getByRole('row').nth(1)).toBeVisible()
   // Check that the table contains the expected number of rows (1 header row + 2 data rows)
-  expect(await dtcTable.getByRole('row').all()).toHaveLength(3)
+  await expect(dtcTable.getByRole('row')).toHaveCount(3)
 })
 
 test('Check DTCs page - view specific diagnostic trouble code', async ({
@@ -63,9 +63,7 @@ test('Check DTCs page - column selection', async ({ page }) => {
     page.getByTestId('dtcs-columns-dropdown-entry').first()
   ).toBeVisible()
   // The overview table has 14 total columns
-  expect(
-    await page.getByTestId('dtcs-columns-dropdown-entry').all()
-  ).toHaveLength(14)
+  await expect(page.getByTestId('dtcs-columns-dropdown-entry')).toHaveCount(14)
 })
 
 test('Check DTCs page - LEVEL filter', async ({ page }) => {
@@ -86,7 +84,7 @@ test('Check DTCs page - LEVEL filter', async ({ page }) => {
   ).toBeVisible()
 
   // Select the "7" value in the dropdown (matches 1 of 2 items)
-  await page.getByTestId('filter-LEVEL-menu-entry-7').click({ force: true })
+  await page.getByTestId('filter-LEVEL-menu-entry-7').click()
 
   await expect(
     page.getByText('1 of total 2 diagnostic trouble codes')

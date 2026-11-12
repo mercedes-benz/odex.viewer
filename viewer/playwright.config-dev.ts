@@ -34,7 +34,7 @@ export default defineConfig({
     {
       cwd: './../server',
       command: 'python -m diag_server.openapi_server',
-      url: 'http://localhost:8080',
+      url: 'http://localhost:8080/v1/diagnostic-data-sets',
       reuseExistingServer: false,
     },
     {

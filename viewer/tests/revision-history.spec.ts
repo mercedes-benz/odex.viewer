@@ -27,16 +27,20 @@ test('Check revision history page', async ({ page }) => {
   // Check the Revisions section
   await expect(page.getByTestId('revisions-subtitle')).toBeVisible()
   await expect(page.getByTestId('revisions-subtitle')).toHaveText('Revisions')
-  expect(await page.getByTestId('revisions-row').all()).toHaveLength(3)
+  await expect(page.getByTestId('revisions-row')).toHaveCount(3)
 
   await expect(
     page.getByTestId('revisions-columns-dropdown-button')
   ).toBeVisible()
   await page.getByTestId('revisions-columns-dropdown-button').click()
 
-  expect(
-    await page.getByTestId('revisions-columns-dropdown-entry').all()
-  ).toHaveLength(6)
+  await expect(
+    page.getByTestId('revisions-columns-dropdown-entry')
+  ).toHaveCount(6)
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByTestId('revisions-columns-dropdown-entry')
+  ).toHaveCount(0)
 
   // Check for the Company Data section
   await expect(page.getByTestId('company-data-subtitle')).toBeVisible()
@@ -49,11 +53,15 @@ test('Check revision history page', async ({ page }) => {
   ).toBeVisible()
   await page.getByTestId('companyData-columns-dropdown-button').click()
 
-  expect(
-    await page.getByTestId('companyData-columns-dropdown-entry').all()
-  ).toHaveLength(17)
+  await expect(
+    page.getByTestId('companyData-columns-dropdown-entry')
+  ).toHaveCount(17)
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByTestId('companyData-columns-dropdown-entry')
+  ).toHaveCount(0)
 
-  expect(await page.getByTestId('company-data-row').all()).toHaveLength(3)
+  await expect(page.getByTestId('company-data-row')).toHaveCount(3)
 })
 
 test('Check revision details page', async ({ page }) => {
@@ -93,9 +101,7 @@ test('Check revision details page', async ({ page }) => {
   await expect(page.getByTestId('revision-modifications-subtitle')).toHaveText(
     'Modifications'
   )
-  expect(
-    await page.getByTestId('revision-modifications-row').all()
-  ).toHaveLength(2)
+  await expect(page.getByTestId('revision-modifications-row')).toHaveCount(2)
 
   // Navigate back to the revision history page using breadcrumb link and check URL
   await expect(

@@ -67,16 +67,15 @@ jobs:
         working-directory: ./viewer
         run: npx playwright install --with-deps
 
-      - name: Build static page export
-        working-directory: ./viewer
-        run: npm run build
-
       - name: Run Playwright tests
         working-directory: ./viewer
         run: npm run test
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
-          path: viewer/playwright-report/
+          name: playwright-debug-artifacts
+          path: |
+            viewer/playwright-report/
+            viewer/test-results/
+          if-no-files-found: warn
           retention-days: 30

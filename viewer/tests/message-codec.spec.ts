@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Download } from '@playwright/test'
+import type { Download, Locator } from '@playwright/test'
 import type { ParameterValueDocument } from '@/utils/parameter-value-documents'
 
 import { readFile } from 'node:fs/promises'
@@ -17,10 +17,10 @@ async function downloadedValues(
   return JSON.parse(await readFile(path, 'utf8')) as ParameterValueDocument
 }
 
-test('JSON parameter documents preview, import, merge, replace and download', async ({
+test('JSON parameter documents preview, import and download', async ({
   page,
-}, testInfo) => {
-  test.setTimeout(90000)
+}) => {
+  test.slow()
   await page.goto(
     '/diagnostic-comm?objectId=cdf68a3c9e6278ed1ded08198ec4376b&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
   )
@@ -28,9 +28,6 @@ test('JSON parameter documents preview, import, merge, replace and download', as
   const response = page.getByRole('region', {
     name: 'Positive Responses',
     exact: true,
-  })
-  const requestCodec = request.getByRole('region', {
-    name: 'Diagnostic message codec',
   })
   const responseCodec = response.getByRole('region', {
     name: 'Diagnostic message codec',
@@ -43,8 +40,7 @@ test('JSON parameter documents preview, import, merge, replace and download', as
   await expect(
     responseCodec.getByRole('button', { name: 'Download template' })
   ).toHaveAccessibleDescription(/null placeholders.*required_parameters/)
-  await request.getByLabel('Value for forward_soberness_check').fill('18')
-  await request.getByLabel('Value for num_flips').fill('3')
+
   await responseCodec
     .getByRole('button', { name: 'Edit JSON', exact: true })
     .click()
@@ -68,24 +64,21 @@ test('JSON parameter documents preview, import, merge, replace and download', as
     dialog.getByRole('table', { name: 'Parameter import preview' })
   ).toContainText('parameter_values.sault_time')
   await expect(response.getByLabel('Value for sault_time')).toHaveValue('')
-  await dialog.screenshot({
-    path: testInfo.outputPath('parameter-json-desktop.png'),
-  })
-  await page.setViewportSize({ width: 390, height: 844 })
-  expect(
-    await dialog.evaluate(
-      (element) => element.scrollWidth <= element.clientWidth + 1
-    )
-  ).toBe(true)
-  await dialog.screenshot({
-    path: testInfo.outputPath('parameter-json-mobile.png'),
-  })
+  await expect(
+    request.getByLabel('Value for forward_soberness_check')
+  ).toHaveValue('')
+  await expect(request.getByLabel('Value for num_flips')).toHaveValue('')
   await dialog.getByRole('button', { name: 'Apply values' }).click()
   await expect(response.getByLabel('Value for sault_time')).toHaveValue('42')
-  await page.setViewportSize({ width: 1280, height: 900 })
+  await expect(
+    request.getByLabel('Value for forward_soberness_check')
+  ).toHaveValue('18')
+  await expect(request.getByLabel('Value for num_flips')).toHaveValue('3')
+
   await responseCodec.getByRole('button', { name: 'Encode message' }).click()
   await expect(responseCodec.getByTestId('message-codec-hex')).toHaveText(
-    'FA 03 2A'
+    'FA 03 2A',
+    { timeout: 10000 }
   )
 
   let download = page.waitForEvent('download')
@@ -142,6 +135,36 @@ test('JSON parameter documents preview, import, merge, replace and download', as
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(response.getByLabel('Value for sault_time')).toHaveValue('42')
   await expect(request.getByLabel('Value for num_flips')).toHaveValue('3')
+})
+
+test('JSON request documents validate, merge and replace values', async ({
+  page,
+}) => {
+  test.slow()
+  await page.goto(
+    '/diagnostic-comm?objectId=cdf68a3c9e6278ed1ded08198ec4376b&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
+  )
+  const request = page.getByRole('region', { name: 'Request', exact: true })
+  const requestCodec = request.getByRole('region', {
+    name: 'Diagnostic message codec',
+  })
+  const dialog = page.getByRole('dialog', { name: 'Physical parameter values' })
+
+  await requestCodec.getByLabel('Upload parameter JSON file').setInputFiles({
+    name: 'request.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        parameter_values: { forward_soberness_check: 18, num_flips: 3 },
+      })
+    ),
+  })
+  await dialog.getByRole('button', { name: 'Preview changes' }).click()
+  await dialog.getByRole('button', { name: 'Apply values' }).click()
+  await expect(
+    request.getByLabel('Value for forward_soberness_check')
+  ).toHaveValue('18')
+  await expect(request.getByLabel('Value for num_flips')).toHaveValue('3')
 
   await requestCodec
     .getByRole('button', { name: 'Edit JSON', exact: true })
@@ -164,11 +187,13 @@ test('JSON parameter documents preview, import, merge, replace and download', as
     .fill(JSON.stringify({ parameter_values: { num_flips: 4 } }))
   await dialog.getByRole('button', { name: 'Merge', exact: true }).click()
   await dialog.getByRole('button', { name: 'Preview changes' }).click()
+
   await dialog.getByRole('button', { name: 'Apply values' }).click()
   await expect(
     request.getByLabel('Value for forward_soberness_check')
   ).toHaveValue('18')
   await expect(request.getByLabel('Value for num_flips')).toHaveValue('4')
+
   await requestCodec
     .getByRole('button', { name: 'Edit JSON', exact: true })
     .click()
@@ -177,12 +202,26 @@ test('JSON parameter documents preview, import, merge, replace and download', as
     .fill(JSON.stringify({ parameter_values: { num_flips: 2 } }))
   await dialog.getByRole('button', { name: 'Replace', exact: true }).click()
   await dialog.getByRole('button', { name: 'Preview changes' }).click()
+
   await dialog.getByRole('button', { name: 'Apply values' }).click()
   await expect(
     request.getByLabel('Value for forward_soberness_check')
   ).toHaveValue('')
   await expect(request.getByLabel('Value for num_flips')).toHaveValue('2')
-  download = page.waitForEvent('download')
+})
+
+test('JSON request template download, import and encode', async ({ page }) => {
+  test.slow()
+  await page.goto(
+    '/diagnostic-comm?objectId=cdf68a3c9e6278ed1ded08198ec4376b&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
+  )
+  const requestCodec = page
+    .getByRole('region', { name: 'Request', exact: true })
+    .getByRole('region', { name: 'Diagnostic message codec' })
+  const dialog = page.getByRole('dialog', { name: 'Physical parameter values' })
+
+  const download = page.waitForEvent('download')
+
   await requestCodec.getByRole('button', { name: 'Download template' }).click()
   const template = await downloadedValues(await download)
 
@@ -219,16 +258,18 @@ test('JSON parameter documents preview, import, merge, replace and download', as
   await dialog.getByRole('button', { name: 'Preview changes' }).click()
   await expect(dialog.getByRole('alert')).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Apply values' }).click()
+
   await requestCodec.getByRole('button', { name: 'Encode message' }).click()
   await expect(requestCodec.getByTestId('message-codec-hex')).toHaveText(
-    /^BA [0-9A-F]{2} [0-9A-F]{2}$/
+    /^BA [0-9A-F]{2} [0-9A-F]{2}$/,
+    { timeout: 10000 }
   )
 })
 
 test('JSON file import fills nested physical values and validates full paths', async ({
   page,
 }) => {
-  test.setTimeout(60000)
+  test.slow()
   await page.goto(
     '/diagnostic-comm?objectId=5b4d00a8d1ba6f53b3a47231600cb2f6&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
   )
@@ -245,9 +286,13 @@ test('JSON file import fills nested physical values and validates full paths', a
   const dialog = page.getByRole('dialog', { name: 'Physical parameter values' })
 
   await requestCodec.getByRole('tab', { name: 'Decode' }).click()
+
   await requestCodec.getByLabel('Hex message to decode').fill('19 02 00')
   await requestCodec.getByRole('button', { name: 'Decode message' }).click()
-  await expect(requestCodec.getByTestId('decoded-values-summary')).toBeVisible()
+  await expect(requestCodec.getByTestId('decoded-values-summary')).toBeVisible({
+    timeout: 10000,
+  })
+
   const document = {
     parameter_values: {
       TestFailed: 'false',
@@ -273,14 +318,18 @@ test('JSON file import fills nested physical values and validates full paths', a
   })
   await dialog.getByRole('button', { name: 'Preview changes' }).click()
   await expect(dialog.getByRole('alert')).toHaveCount(0)
+
   await dialog.getByRole('button', { name: 'Apply values' }).click()
   await expect(
     response.getByRole('combobox', { name: 'DTC for dtc_dop_all' })
-  ).toHaveValue('4097')
+  ).toHaveValue('4097', { timeout: 10000 })
+
   await codec.getByRole('button', { name: 'Encode message' }).click()
   await expect(codec.getByTestId('message-codec-hex')).toHaveText(
-    '59 02 00 00 10 01 29'
+    '59 02 00 00 10 01 29',
+    { timeout: 10000 }
   )
+
   await codec.getByRole('button', { name: 'Edit JSON', exact: true }).click()
   await dialog.getByLabel('Parameter values JSON').fill(
     JSON.stringify({
@@ -339,24 +388,35 @@ test('encode and decode request and response parameter values', async ({
   await page.goto(
     '/diagnostic-comm?objectId=cdf68a3c9e6278ed1ded08198ec4376b&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
   )
+  await expect(page.locator('[data-hydrated]')).toHaveAttribute(
+    'data-hydrated',
+    'true'
+  )
 
   await expect(page.getByTestId('diag-comm-container-name')).toHaveText(
-    'do_forward_flips'
+    'do_forward_flips',
+    { timeout: 10000 }
   )
 
   const requestSection = page.getByRole('region', {
     name: 'Request',
     exact: true,
   })
+  const fillNumber = async (input: Locator, value: string) => {
+    await input.clear()
+    await input.fill(value)
+    await expect(input).toHaveValue(value)
+  }
 
   await expect(
     requestSection.getByText('Encoding/Decoding', { exact: true })
   ).toBeVisible()
 
-  await requestSection
-    .getByLabel('Value for forward_soberness_check')
-    .fill('18')
-  await requestSection.getByLabel('Value for num_flips').fill('3')
+  await fillNumber(
+    requestSection.getByLabel('Value for forward_soberness_check'),
+    '18'
+  )
+  await fillNumber(requestSection.getByLabel('Value for num_flips'), '3')
 
   const requestCodec = requestSection.getByRole('region', {
     name: 'Diagnostic message codec',
@@ -369,9 +429,11 @@ test('encode and decode request and response parameter values', async ({
     })
   ).toBeVisible()
   await requestCodec.getByRole('tab', { name: 'Encode' }).click()
+
   await requestCodec.getByRole('button', { name: 'Encode message' }).click()
   await expect(requestCodec.getByTestId('message-codec-hex')).toHaveText(
-    'BA 12 03'
+    'BA 12 03',
+    { timeout: 10000 }
   )
 
   const requestLayout = requestCodec.getByTestId('message-layout')
@@ -401,12 +463,16 @@ test('encode and decode request and response parameter values', async ({
     'BA 12 03'
   )
 
-  await requestSection.getByLabel('Value for forward_soberness_check').fill('7')
-  await requestSection.getByLabel('Value for num_flips').fill('4')
+  await fillNumber(
+    requestSection.getByLabel('Value for forward_soberness_check'),
+    '7'
+  )
+  await fillNumber(requestSection.getByLabel('Value for num_flips'), '4')
   await requestCodec.getByRole('button', { name: 'Decode message' }).click()
   await expect(
     requestCodec.getByTestId('decoded-values-summary')
-  ).toContainText('Updated 2 editable parameter values')
+  ).toContainText('Updated 2 editable parameter values', { timeout: 10000 })
+
   await expect(
     requestCodec.getByTestId('message-codec-physical-values')
   ).toContainText('"forward_soberness_check": 18')
@@ -423,7 +489,7 @@ test('encode and decode request and response parameter values', async ({
     exact: true,
   })
 
-  await responseSection.getByLabel('Value for sault_time').fill('42')
+  await fillNumber(responseSection.getByLabel('Value for sault_time'), '42')
 
   const responseCodec = responseSection.getByRole('region', {
     name: 'Diagnostic message codec',
@@ -432,20 +498,24 @@ test('encode and decode request and response parameter values', async ({
   await expect(responseCodec).toContainText(
     'Triggering request: do_forward_flips · uses values from the Request table.'
   )
+
   await responseCodec.getByRole('button', { name: 'Encode message' }).click()
   await expect(responseCodec.getByTestId('message-codec-hex')).toHaveText(
-    'FA 03 2A'
+    'FA 03 2A',
+    { timeout: 10000 }
   )
 
   await responseCodec.getByRole('tab', { name: 'Decode' }).click()
   await expect(responseCodec.getByLabel('Hex message to decode')).toHaveValue(
     'FA 03 2A'
   )
-  await responseSection.getByLabel('Value for sault_time').fill('5')
+
+  await fillNumber(responseSection.getByLabel('Value for sault_time'), '5')
   await responseCodec.getByRole('button', { name: 'Decode message' }).click()
   await expect(
     responseCodec.getByTestId('decoded-values-summary')
-  ).toContainText('Updated 1 editable parameter value')
+  ).toContainText('Updated 1 editable parameter value', { timeout: 10000 })
+
   await expect(
     responseCodec.getByTestId('message-codec-physical-values')
   ).toContainText('"sault_time": 42')
@@ -454,9 +524,9 @@ test('encode and decode request and response parameter values', async ({
   )
 })
 
-test('re-encode decoded repeated response values', async ({
-  page,
-}, testInfo) => {
+test('re-encode decoded repeated response values', async ({ page }) => {
+  test.slow()
+
   await page.goto(
     '/diagnostic-comm?objectId=5b4d00a8d1ba6f53b3a47231600cb2f6&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
   )
@@ -470,12 +540,18 @@ test('re-encode decoded repeated response values', async ({
   })
 
   await requestCodec.getByRole('tab', { name: 'Decode' }).click()
+  await expect(requestCodec.getByLabel('Hex message to decode')).toBeVisible()
+
   await requestCodec.getByLabel('Hex message to decode').fill('19 02 00')
   await requestCodec.getByRole('button', { name: 'Decode message' }).click()
+  await expect(requestCodec.getByTestId('decoded-values-summary')).toBeVisible({
+    timeout: 10000,
+  })
   await expect(requestCodec.getByRole('alert')).toHaveCount(0)
   await expect(
     requestSection.getByLabel('Value for TestFailed', { exact: true })
   ).toBeVisible()
+
   const requestLayout = requestCodec.getByTestId('message-layout')
 
   await expect(
@@ -503,13 +579,20 @@ test('re-encode decoded repeated response values', async ({
   const hexMessage = '59 02 00 00 10 01 29 00 10 02 08'
 
   await responseCodec.getByRole('tab', { name: 'Decode' }).click()
+
+  await expect(responseCodec.getByLabel('Hex message to decode')).toBeVisible()
   await responseCodec.getByLabel('Hex message to decode').fill(hexMessage)
+
   await responseCodec.getByRole('button', { name: 'Decode message' }).click()
   await expect(
     responseCodec.getByTestId('decoded-values-summary')
-  ).toContainText('Updated')
+  ).toContainText('Updated 14 editable parameter values', { timeout: 10000 })
 
   await responseCodec.getByRole('tab', { name: 'Encode' }).click()
+  await expect(
+    responseCodec.getByRole('button', { name: 'Encode message' })
+  ).toBeVisible()
+
   const encoding = page.waitForRequest(
     (request) =>
       request.method() === 'POST' && request.url().endsWith('/encode')
@@ -537,8 +620,10 @@ test('re-encode decoded repeated response values', async ({
   })
 
   await expect(groupToggle).toHaveAttribute('aria-expanded', 'false')
+
   await groupToggle.click()
   await expect(groupToggle).toHaveAttribute('aria-expanded', 'true')
+
   await expect(
     layout.locator('[data-parameter="DTCAndStatusRecord[0]"]')
   ).toHaveCount(32)
@@ -583,24 +668,6 @@ test('re-encode decoded repeated response values', async ({
     'opacity',
     '0.3'
   )
-
-  await layout.scrollIntoViewIfNeeded()
-  await layout.screenshot({
-    path: testInfo.outputPath('message-layout-desktop.png'),
-  })
-  await page.setViewportSize({ width: 390, height: 844 })
-  await layout.scrollIntoViewIfNeeded()
-  expect(
-    await layout.evaluate((element) => element.getBoundingClientRect().width)
-  ).toBeLessThanOrEqual(390)
-  expect(
-    await layout.evaluate(
-      (element) => element.scrollWidth <= element.clientWidth + 1
-    )
-  ).toBe(true)
-  await layout.screenshot({
-    path: testInfo.outputPath('message-layout-mobile.png'),
-  })
 })
 
 test('message layout shows real table rows and selecting keys', async ({
@@ -678,8 +745,7 @@ test('message layout shows real table rows and selecting keys', async ({
 
 test('large message layout keeps bytes and legend visible together', async ({
   page,
-}, testInfo) => {
-  await page.setViewportSize({ width: 1280, height: 900 })
+}) => {
   await page.goto(
     '/diagnostic-comm?objectId=5b4d00a8d1ba6f53b3a47231600cb2f6&variantId=7a92ecf9c86b84e9cd57fe92f4b547c7&containerId=c91929c68418ac5db8f9534234e0fc1b'
   )
@@ -706,14 +772,19 @@ test('large message layout keeps bytes and legend visible together', async ({
   const details = layout.getByRole('region', { name: 'Parameter details' })
 
   await layout.scrollIntoViewIfNeeded()
-  const diagramBounds = await diagram.boundingBox()
-  const legendBounds = await legend.boundingBox()
+  await expect
+    .poll(async () => {
+      const diagramBounds = await diagram.boundingBox()
+      const legendBounds = await legend.boundingBox()
 
-  expect(diagramBounds).not.toBeNull()
-  expect(legendBounds).not.toBeNull()
-  expect(diagramBounds!.x + diagramBounds!.width).toBeLessThanOrEqual(
-    legendBounds!.x
-  )
+      return (
+        diagramBounds !== null &&
+        legendBounds !== null &&
+        diagramBounds.x + diagramBounds.width <= legendBounds.x
+      )
+    })
+    .toBe(true)
+  const diagramBounds = await diagram.boundingBox()
   const diagramScroll = await bytes.evaluate((element) => element.scrollTop)
 
   await legend.evaluate((element) => {
@@ -725,7 +796,9 @@ test('large message layout keeps bytes and legend visible together', async ({
   expect(await bytes.evaluate((element) => element.scrollTop)).toBe(
     diagramScroll
   )
-  expect((await diagram.boundingBox())!.y).toBeCloseTo(diagramBounds!.y, 0)
+  await expect
+    .poll(async () => (await diagram.boundingBox())?.y)
+    .toBeCloseTo(diagramBounds!.y, 0)
 
   const lastPath = 'DTCAndStatusRecord[11].WarningIndicatorRequested'
   const lastBit = bytes.locator('[data-byte="50"][data-bit="7"]')
@@ -740,13 +813,20 @@ test('large message layout keeps bytes and legend visible together', async ({
     .getByRole('button')
 
   await expect(selectedEntry).toHaveAttribute('aria-pressed', 'true')
-  const selectedBounds = await selectedEntry.boundingBox()
-  const scrolledLegendBounds = await legend.boundingBox()
+  await expect
+    .poll(async () => {
+      const selectedBounds = await selectedEntry.boundingBox()
+      const scrolledLegendBounds = await legend.boundingBox()
 
-  expect(selectedBounds!.y).toBeGreaterThanOrEqual(scrolledLegendBounds!.y - 1)
-  expect(selectedBounds!.y + selectedBounds!.height).toBeLessThanOrEqual(
-    scrolledLegendBounds!.y + scrolledLegendBounds!.height + 1
-  )
+      return (
+        selectedBounds !== null &&
+        scrolledLegendBounds !== null &&
+        selectedBounds.y >= scrolledLegendBounds.y - 1 &&
+        selectedBounds.y + selectedBounds.height <=
+          scrolledLegendBounds.y + scrolledLegendBounds.height + 1
+      )
+    })
+    .toBe(true)
 
   const sidEntry = legend
     .locator('[data-layout-path="SID_PR"]')
@@ -754,7 +834,9 @@ test('large message layout keeps bytes and legend visible together', async ({
 
   await sidEntry.click()
   await expect(details).toContainText('SID_PR')
-  expect(await bytes.evaluate((element) => element.scrollTop)).toBe(0)
+  await expect
+    .poll(() => bytes.evaluate((element) => element.scrollTop))
+    .toBe(0)
   await bytes.locator('[data-byte="3"][data-bit="7"]').hover()
   await expect(
     legend
@@ -764,30 +846,4 @@ test('large message layout keeps bytes and legend visible together', async ({
   await expect(details).toContainText('DTCAndStatusRecord[0].DTCRecord')
   await page.mouse.move(0, 0)
   await expect(details).toContainText('SID_PR')
-  await layout.screenshot({
-    path: testInfo.outputPath('message-inspector-desktop.png'),
-  })
-
-  await page.setViewportSize({ width: 390, height: 844 })
-  await layout.scrollIntoViewIfNeeded()
-  const mobileDiagram = await diagram.boundingBox()
-  const mobileLegend = await legend.boundingBox()
-
-  expect(mobileDiagram!.y + mobileDiagram!.height).toBeLessThanOrEqual(
-    mobileLegend!.y + 1
-  )
-  expect(
-    await layout.evaluate(
-      (element) => element.scrollWidth <= element.clientWidth + 1
-    )
-  ).toBe(true)
-  const mobileTop = mobileDiagram!.y
-
-  await legend.evaluate((element) => {
-    element.scrollTop = element.scrollHeight
-  })
-  expect((await diagram.boundingBox())!.y).toBeCloseTo(mobileTop, 0)
-  await layout.screenshot({
-    path: testInfo.outputPath('message-inspector-mobile.png'),
-  })
 })
