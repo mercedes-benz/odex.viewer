@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 'use client'
 
-import { Accordion, AccordionItem } from '@heroui/accordion'
 import { Card, CardBody } from '@heroui/card'
 import { Link } from '@heroui/link'
 import { CircularProgress } from '@heroui/progress'
@@ -19,6 +18,7 @@ import { useTheme } from 'next-themes'
 import { useSearchParams } from 'next/navigation'
 import React from 'react'
 
+import { Accordion, AccordionItem } from '@/components/accordion'
 import client, {
   ObjectMetadata,
   StateChart,
@@ -369,7 +369,7 @@ export default function StateChartPage() {
                       ReferencingDiagComms(
                         item.perma_id,
                         referencingTransitions,
-                        Number(containerId),
+                        containerId,
                         variantId
                       )
                     ) : (

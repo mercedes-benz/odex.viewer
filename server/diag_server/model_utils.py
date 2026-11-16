@@ -484,6 +484,9 @@ def odx_values_as_dict(
         result["class_name"] = type_with_weakref(obj).__name__
         if isinstance(obj, OdxLinkRef) and db_object is not None:
             resolved_obj = db_object.odxlinks.resolve(obj)
+            # Check if resolved object is a weakref and resolve to the actual object
+            if isinstance(resolved_obj, (weakref.CallableProxyType, weakref.ProxyType)):
+                resolved_obj = resolved_obj.__repr__.__self__ # type: ignore[attr-defined]
             # Resolve and assign the perma ID and ephemeral ID of the referenced object
             result["resolved_object_perma_id"] = get_perma_id(resolved_obj)
             result["resolved_object_ephemeral_id"] = id(resolved_obj)

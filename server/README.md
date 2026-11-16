@@ -45,7 +45,7 @@ Further information about the the provided launch configurations can be found in
 
 ### Embedded Serving of the User Interface
 
-If the user interface has been [exported as static pages](../viewer/README.md#generating-static-ui-files), the odex.viewer backend server will provide them via HTTP and no separate node.js server is required for the user interface.
+If the user interface has been [exported as static pages](../viewer/README.md#build-the-odexviewer-as-a-static-site), the odex.viewer backend server will provide them via HTTP and no separate node.js server is required for the user interface.
 
 If this behaviour is undesired for some reason, serving the static page exports can be explicitly controlled using the `DIAG_SERVER_SERVE_UI_ENABLED` environment variable: Setting it `false` or `no` deactivates this functionality:
 
@@ -92,7 +92,7 @@ python -m mypy .
 
 ## Dockerized Setup
 
-The odex.viewer can also be containerized using Docker. Details and further instructions can be found in the global project [README.md](./../README.md#dockerized-setup).
+The odex.viewer can also be containerized using Docker. Details and further instructions can be found in the global project [README.md](../README.md#containerized-setup-using-docker).
 
 ## Developer Notes
 

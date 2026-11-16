@@ -51,7 +51,7 @@ test('Check ODX-D page and navigatation to revision history page', async ({
   // Check the Revisions section
   await expect(page.getByTestId('revisions-subtitle')).toBeVisible()
   await expect(page.getByTestId('revisions-subtitle')).toHaveText('Revisions')
-  expect(await page.getByTestId('revisions-row').all()).toHaveLength(3)
+  await expect(page.getByTestId('revisions-row')).toHaveCount(3)
 
   await expect(
     page.getByTestId('revision-history-container-name')
@@ -66,16 +66,20 @@ test('Check ODX-D page and navigatation to revision history page', async ({
   await page.getByTestId('revisions-columns-dropdown-button').click()
 
   // The revisions table has 6 total columns which can be toggled on/off in the column selection dropdown
-  expect(
-    await page.getByTestId('revisions-columns-dropdown-entry').all()
-  ).toHaveLength(6)
+  await expect(
+    page.getByTestId('revisions-columns-dropdown-entry')
+  ).toHaveCount(6)
+  await page.keyboard.press('Escape')
+  await expect(
+    page.getByTestId('revisions-columns-dropdown-entry')
+  ).toHaveCount(0)
 
   // Check the Company Data section
   await expect(page.getByTestId('company-data-subtitle')).toBeVisible()
   await expect(page.getByTestId('company-data-subtitle')).toHaveText(
     'Company Data'
   )
-  expect(await page.getByTestId('company-data-row').all()).toHaveLength(3)
+  await expect(page.getByTestId('company-data-row')).toHaveCount(3)
 })
 
 test('Check ODX-D page - column selection on database table', async ({
@@ -90,9 +94,9 @@ test('Check ODX-D page - column selection on database table', async ({
   await page.getByTestId('odxDatabases-columns-dropdown-button').click()
 
   // The databases table has 8 total columns which can be toggled on/off in the column selection dropdown
-  expect(
-    await page.getByTestId('odxDatabases-columns-dropdown-entry').all()
-  ).toHaveLength(8)
+  await expect(
+    page.getByTestId('odxDatabases-columns-dropdown-entry')
+  ).toHaveCount(8)
 })
 
 test('Check ODX-D page - VARIANT TYPE filter on diagnostic variants table', async ({
@@ -114,11 +118,9 @@ test('Check ODX-D page - VARIANT TYPE filter on diagnostic variants table', asyn
   ).toBeVisible()
 
   // Select the "ECU-VARIANT" value in the dropdown (matches 2 of 3 items)
-  await page
-    .getByTestId('filter-VARIANT TYPE-menu-entry-ECU-VARIANT')
-    .click({ force: true })
+  await page.getByTestId('filter-VARIANT TYPE-menu-entry-ECU-VARIANT').click()
 
-  expect(
-    await page.getByRole('button', { name: 'Show Variant' }).all()
-  ).toHaveLength(2)
+  await expect(page.getByRole('button', { name: 'Show Variant' })).toHaveCount(
+    2
+  )
 })

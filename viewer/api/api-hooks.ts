@@ -32,6 +32,12 @@ export const useMutate = createMutateHook(
 
 // Export required API types
 export type JsonProblem = components['schemas']['JsonProblem']
+export type DiagnosticMessageCodecResult =
+  components['schemas']['DiagnosticMessageCodecResult']
+export type EncodeDiagnosticMessageInput =
+  components['schemas']['EncodeDiagnosticMessageInput']
+export type DecodeDiagnosticMessageInput =
+  components['schemas']['DecodeDiagnosticMessageInput']
 export type DiagnosticDataSetDescriptor =
   components['schemas']['DiagnosticDataSetDescriptor']
 export type DiagnosticDataType = components['schemas']['DiagnosticDataType']
@@ -81,6 +87,7 @@ export type ComparamInstance = components['schemas']['ComparamInstance']
 export type AdditionalAudience = components['schemas']['AdditionalAudience']
 export type AudienceResolved = components['schemas']['AudienceResolved']
 export type OdxAny = components['schemas']['OdxAny']
+export type OdxSchemaName = components['schemas']['OdxSchemaNames']
 export type Addressing = components['schemas']['Addressing']
 export type Request = components['schemas']['Request']
 export type ProgCode = components['schemas']['ProgCode']
@@ -183,6 +190,8 @@ export type DiagCodedTypeUnionType =
 
 // DOP type definitions - Generic
 export type DataObjectProperty = components['schemas']['DataObjectProperty']
+export type DataObjectPropertyResolved =
+  components['schemas']['DataObjectPropertyResolved']
 export type DtcDop = components['schemas']['DtcDop']
 export type ComplexDop = components['schemas']['ComplexDop']
 export type Multiplexer = components['schemas']['Multiplexer']

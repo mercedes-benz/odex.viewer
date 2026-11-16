@@ -85,7 +85,12 @@ export function OdxDatabasesComponent({ pageId }: { pageId: string }) {
     async load() {
       return {
         items: odx_databases
-          ? resolveDLCBasedDatabaseInfo(odx_databases.items)
+          ? resolveDLCBasedDatabaseInfo(odx_databases.items).sort((a, b) =>
+              sortItemsBySortDescriptor<CombinedDatasetDlcType>(a, b, {
+                column: 'dlc_short_name',
+                direction: 'ascending',
+              })
+            )
           : [],
       }
     },

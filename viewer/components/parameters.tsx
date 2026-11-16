@@ -3,7 +3,6 @@
 
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -18,14 +17,23 @@ import {
 import React from 'react'
 
 import {
+  DopBase,
   EnvironmentData,
+  isBasicStructureDop,
   isCodedConstParameterType,
+  isDataObjectPropertyDop,
+  isDtcDop,
+  isEnvironmentDataDescriptionDop,
+  isEndOfPduFieldDop,
+  isFieldDop,
   isLengthKeyParameterType,
   isMatchingRequestParameterType,
   isNrcConstParameterType,
   isParameterTypeWithDopRef,
   isPhysicalConstantParameterType,
+  isMultiplexerDop,
   isReservedParameter,
+  isStaticFieldDop,
   isSystemParameterType,
   isTableEntryParameterType,
   isTableKeyParameterType,
@@ -42,37 +50,82 @@ import {
   DescriptionComponent,
   DiagCodedTypeComponent,
   DiagCodedTypePopoverComponent,
-  NextPageButton,
   OdxLinkPopoverComponent,
   ParameterSemanticChip,
   ParameterTypeChip,
-  PreviousPageButton,
 } from '@/components/commons'
 import {
   ParameterTableColumnDropdown,
   TableFilterDropdown,
 } from '@/components/custom-dropdowns'
-import { SearchIcon } from '@/components/icons'
+import { subtitleWithSize } from '@/components/primitives'
 import {
+  DiagnosticMessageCodecControls,
+  DiagnosticMessageKind,
+  useMessageValueStore,
+} from '@/components/diagnostic-message-codec'
+import { SearchIcon } from '@/components/icons'
+import { useSelectionWithIndexedDB } from '@/storage/settings'
+import {
+  DataObjectPropTargetObjectIds,
+  DiagnosticCommTargetObjectIds,
+  isDiagnosticCommTargetObjectIds,
   ParameterColumnDefinition,
   ParameterTargetObjectIds,
-  DiagnosticCommTargetObjectIds,
-  DataObjectPropTargetObjectIds,
-  isDiagnosticCommTargetObjectIds,
 } from '@/types/index'
-import { getHexRepresentation, sortItemsBySortDescriptor } from '@/utils/utils'
-import { useSelectionWithIndexedDB } from '@/storage/settings'
+import {
+  getHexRepresentation,
+  getParameterValueInputSpec,
+  sortItemsBySortDescriptor,
+} from '@/utils/utils'
+import {
+  AtomicParameterValue,
+  ParameterValueStore,
+  ParameterValueStoreContext,
+  DopRefPopover,
+  fetchDop,
+  ParameterValueCell,
+  getParameterValueKey,
+} from '@/components/dop-preview'
+import {
+  ParameterImportMode,
+  PreparedParameterImport,
+  mergePhysicalValues,
+  parameterDocumentChanges,
+  reviewParameterDocument,
+} from '@/utils/parameter-value-documents'
 
 export function ParametersComponent({
   parentObject,
   targetObjectIds,
   pageId,
+  messageKind,
+  triggeringRequest,
 }: {
   parentObject: Request | Response | Structure | EnvironmentData
   targetObjectIds: DiagnosticCommTargetObjectIds | DataObjectPropTargetObjectIds
   pageId: string
+  messageKind?: DiagnosticMessageKind
+  triggeringRequest?: Request
 }) {
   const parameters = parentObject.parameters as ParameterUnionType[]
+  const messageValueStore = useMessageValueStore()
+  const messageId =
+    messageKind !== undefined &&
+    isDiagnosticCommTargetObjectIds(targetObjectIds)
+      ? parentObject.perma_id
+      : undefined
+  const [, refreshMessageValues] = React.useReducer(
+    (revision: number) => revision + 1,
+    0
+  )
+  const localValueListeners = React.useRef(new Set<() => void>())
+
+  React.useEffect(() => {
+    if (!messageId || !messageValueStore) return
+
+    return messageValueStore.subscribe(messageId, refreshMessageValues)
+  }, [messageId, messageValueStore, refreshMessageValues])
 
   // Introduce all state variables for searching and filtering the parameters
   const [searchValue, setSearchValue] = React.useState('')
@@ -99,11 +152,168 @@ export function ParametersComponent({
     column: 'byte_position',
     direction: 'ascending',
   })
+  const parameterValues = React.useRef<Record<string, AtomicParameterValue>>({})
+  const valueStore = React.useMemo<ParameterValueStore>(() => {
+    // Ephemeral ids are only stable per server session, so the cache lives with the table
+    const dopCache = new Map<number, Promise<DopBase | undefined>>()
 
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [selectedSemantics, selectedParamTypes])
+    return {
+      getValue: (path) =>
+        messageId && messageValueStore
+          ? messageValueStore.getValue(messageId, path)
+          : parameterValues.current[path],
+      setValue: (path, value) => {
+        parameterValues.current[path] = value
+        if (messageId) messageValueStore?.setValue(messageId, path, value)
+        else localValueListeners.current.forEach((listener) => listener())
+      },
+      subscribe: (listener) => {
+        if (messageId && messageValueStore) {
+          return messageValueStore.subscribe(messageId, listener)
+        }
+        localValueListeners.current.add(listener)
+
+        return () => localValueListeners.current.delete(listener)
+      },
+      loadDop: (ephemeralId) => {
+        let pendingDop = dopCache.get(ephemeralId)
+
+        if (pendingDop === undefined) {
+          pendingDop = fetchDop(ephemeralId).catch(() => undefined)
+          dopCache.set(ephemeralId, pendingDop)
+        }
+
+        return pendingDop
+      },
+    }
+  }, [messageId, messageValueStore, refreshMessageValues])
+
+  const buildParameterValues = React.useCallback(
+    async (message: Request | Response) => {
+      if (!messageValueStore || !message.perma_id) {
+        throw new Error('Message values are not available.')
+      }
+
+      return serializeMessageParameters(
+        message.parameters as ParameterUnionType[],
+        message.perma_id,
+        '',
+        messageValueStore,
+        valueStore
+      )
+    },
+    [messageValueStore, valueStore]
+  )
+
+  const applyDecodedValues = React.useCallback(
+    async (
+      message: Request | Response,
+      decodedValues: Record<string, unknown>
+    ) => {
+      if (!messageValueStore || !message.perma_id) {
+        throw new Error('Message values are not available.')
+      }
+
+      const hydratedValues: Record<string, AtomicParameterValue> = {}
+      const updatedValueCount = await hydrateMessageParameters(
+        (message.parameters ?? []) as ParameterUnionType[],
+        decodedValues,
+        '',
+        hydratedValues,
+        valueStore
+      )
+
+      parameterValues.current = { ...hydratedValues }
+      messageValueStore.setValues(message.perma_id, hydratedValues)
+
+      return updatedValueCount
+    },
+    [messageValueStore, valueStore]
+  )
+
+  const prepareParameterImport = async (
+    input: unknown,
+    mode: ParameterImportMode
+  ): Promise<PreparedParameterImport> => {
+    if (!messageValueStore) throw new Error('Message values are not available.')
+    const message = parentObject as Request | Response
+    const request = messageKind === 'response' ? triggeringRequest : undefined
+    const review = await reviewParameterDocument(
+      input,
+      message,
+      request,
+      valueStore.loadDop
+    )
+    const updates: {
+      messageId: string
+      values: Record<string, AtomicParameterValue>
+    }[] = []
+    const before: Record<string, unknown> = {}
+    const after: Record<string, unknown> = {}
+
+    for (const [field, target] of [
+      ['parameter_values', message],
+      ['request_parameter_values', request],
+    ] as const) {
+      const incoming = review.document[field]
+
+      if (!target || incoming === undefined) continue
+      if (!target.perma_id)
+        throw new Error(`${field}: message has no permanent ID.`)
+      const current = await buildParameterValues(target)
+      const next =
+        mode === 'merge' ? mergePhysicalValues(current, incoming) : incoming
+      const checked = await reviewParameterDocument(
+        { parameter_values: next },
+        target,
+        undefined,
+        valueStore.loadDop
+      )
+
+      review.errors.push(
+        ...checked.errors.map((error) =>
+          error.replace(/^parameter_values/, field)
+        )
+      )
+      before[field] = current
+      after[field] = checked.document.parameter_values
+      review.document[field] = checked.document.parameter_values
+      const values: Record<string, AtomicParameterValue> = {}
+
+      await hydrateMessageParameters(
+        (target.parameters ?? []) as ParameterUnionType[],
+        checked.document.parameter_values,
+        '',
+        values,
+        valueStore
+      )
+      updates.push({ messageId: target.perma_id, values })
+    }
+
+    return {
+      ...review,
+      errors: Array.from(new Set(review.errors)),
+      changes: parameterDocumentChanges(before, after),
+      apply: () => {
+        if (review.errors.length)
+          throw new Error('Resolve validation errors before importing.')
+        for (const update of updates) {
+          if (update.messageId === messageId)
+            parameterValues.current = { ...update.values }
+          messageValueStore.setValues(update.messageId, update.values)
+        }
+      },
+    }
+  }
+
+  const buildParameterTemplate = async () =>
+    reviewParameterDocument(
+      {},
+      parentObject as Request | Response,
+      messageKind === 'response' ? triggeringRequest : undefined,
+      valueStore.loadDop,
+      true
+    )
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ParameterColumnDefinition[] = [
@@ -141,6 +351,7 @@ export function ParametersComponent({
     },
     { label: 'BYTE POSITION', key: 'byte_position', sortable: true },
     { label: 'BIT POSITION', key: 'bit_position', sortable: true },
+    { label: 'VALUE', key: 'value', sortable: false },
     {
       label: 'PHYSICAL DEFAULT VALUE',
       key: 'physical_default_value',
@@ -243,7 +454,8 @@ export function ParametersComponent({
     'parameter_type',
     'byte_position',
     'bit_position',
-    'actions',
+    'dop_ref',
+    'value',
   ])
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
     pageId,
@@ -514,18 +726,8 @@ export function ParametersComponent({
     sortDescriptor,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(5)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (param: ParameterUnionType, columnKey: React.Key) => {
@@ -566,6 +768,15 @@ export function ParametersComponent({
           return <p>{param.byte_position}</p>
         case 'bit_position':
           return <p>{param.bit_position}</p>
+        case 'value':
+          return (
+            <ParameterValueCell
+              ancestorDopIds={[]}
+              depth={0}
+              parameter={param}
+              path={getParameterValueKey(param)}
+            />
+          )
         case 'physical_default_value':
           return isValueParameterType(param) ? (
             <p>{param.physical_default_value}</p>
@@ -580,10 +791,9 @@ export function ParametersComponent({
             param.dop_snref ? (
               <p>{param.dop_snref}</p>
             ) : param.dop_ref ? (
-              <OdxLinkPopoverComponent
+              <DopRefPopover
+                dopRef={param.dop_ref}
                 href={`/dops?objectId=${param.dop_ref.resolved_object_perma_id}&variantId=${targetObjectIds.variantId}&containerId=${targetObjectIds.containerId}`}
-                label="Show DOP"
-                odxLink={param.dop_ref}
               />
             ) : (
               <></>
@@ -724,30 +934,9 @@ export function ParametersComponent({
     [filteredItems]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -755,7 +944,6 @@ export function ParametersComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -786,106 +974,563 @@ export function ParametersComponent({
           <span className="text-small">
             {filteredItems.length} of total {parameters.length} parameters
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="25">25</option>
-            </select>
-          </label>
         </div>
       </div>
     )
-  }, [
-    searchValue,
-    visibleColumns,
-    onSearchChange,
-    onRowsPerPageChange,
-    filteredItems,
-  ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
+  }, [searchValue, visibleColumns, onSearchChange, filteredItems])
 
   return (
-    <Table
-      isHeaderSticky
-      isStriped
-      aria-label="Diagnostic communications table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
-      classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
-      }}
-      selectedKeys={selectedKeys}
-      selectionMode="none"
-      sortDescriptor={sortDescriptor}
-      topContent={topContent}
-      topContentPlacement="outside"
-      onSelectionChange={setSelectedKeys}
-      onSortChange={setSortDescriptor}
-    >
-      <TableHeader
-        columns={
-          visibleColumns === 'all'
-            ? columns
-            : columns.filter((column) =>
-                Array.from(visibleColumns).includes(column.key)
-              )
-        }
+    <ParameterValueStoreContext.Provider value={valueStore}>
+      <Table
+        isHeaderSticky
+        isStriped
+        aria-label="Diagnostic communications table"
+        classNames={{
+          wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
+        }}
+        selectedKeys={selectedKeys}
+        selectionMode="none"
+        sortDescriptor={sortDescriptor}
+        topContent={topContent}
+        topContentPlacement="outside"
+        onSelectionChange={setSelectedKeys}
+        onSortChange={setSortDescriptor}
       >
-        {(column) => (
-          <TableColumn
-            key={column.key}
-            align={column.key === 'actions' ? 'center' : 'start'}
-            allowsSorting={column.sortable}
-          >
-            {column.label}
-            {column.filter ? (
-              <span className="ml-2">{column.filter}</span>
-            ) : null}
-          </TableColumn>
-        )}
-      </TableHeader>
-      <TableBody
-        emptyContent={'No PARAMs found'}
-        items={visible_items}
-        loadingContent={<CircularProgress aria-label="Loading..." />}
-      >
-        {(item) => (
-          <TableRow key={item.ephemeral_id}>
-            {(columnKey) => (
-              <TableCell>{renderCell(item, columnKey)}</TableCell>
-            )}
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
+        <TableHeader
+          columns={
+            visibleColumns === 'all'
+              ? columns
+              : columns.filter((column) =>
+                  Array.from(visibleColumns).includes(column.key)
+                )
+          }
+        >
+          {(column) => (
+            <TableColumn
+              key={column.key}
+              align={column.key === 'actions' ? 'center' : 'start'}
+              allowsSorting={column.sortable}
+            >
+              {column.label}
+              {column.filter ? (
+                <span className="ml-2">{column.filter}</span>
+              ) : null}
+            </TableColumn>
+          )}
+        </TableHeader>
+        <TableBody
+          emptyContent={'No PARAMs found'}
+          items={filteredItems}
+          loadingContent={<CircularProgress aria-label="Loading..." />}
+        >
+          {(item) => (
+            <TableRow key={item.ephemeral_id}>
+              {(columnKey) => (
+                <TableCell>{renderCell(item, columnKey)}</TableCell>
+              )}
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      {messageKind !== undefined && messageId !== undefined ? (
+        <div className="mt-6 w-full text-left">
+          <div className="pb-2 text-start">
+            <div className={subtitleWithSize({ size: 'md' })}>
+              Encoding/Decoding
+            </div>
+          </div>
+          <DiagnosticMessageCodecControls
+            applyDecodedValues={applyDecodedValues}
+            buildParameterTemplate={buildParameterTemplate}
+            buildParameterValues={buildParameterValues}
+            message={parentObject as Request | Response}
+            messageKind={messageKind}
+            prepareParameterImport={prepareParameterImport}
+            targetObjectIds={targetObjectIds as DiagnosticCommTargetObjectIds}
+            triggeringRequest={triggeringRequest}
+          />
+        </div>
+      ) : null}
+    </ParameterValueStoreContext.Provider>
   )
+}
+
+async function serializeMessageParameters(
+  parameters: ParameterUnionType[],
+  messageId: string,
+  parentPath: string,
+  messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
+  valueStore: ParameterValueStore
+): Promise<Record<string, unknown>> {
+  const values: Record<string, unknown> = {}
+
+  for (let index = 0; index < parameters.length; index += 1) {
+    const parameter = parameters[index]
+
+    if (
+      parameter === undefined ||
+      !isValueParameterType(parameter) ||
+      !parameter.short_name
+    ) {
+      continue
+    }
+
+    const path = parentPath
+      ? `${parentPath}.${parameter.short_name}`
+      : getParameterValueKey(parameter)
+
+    const dopId = parameter.dop_ref?.resolved_object_ephemeral_id
+
+    if (dopId === undefined) continue
+
+    const dop = await valueStore.loadDop(dopId)
+
+    if (dop === undefined) {
+      throw new Error(`Could not load the DOP for ${parameter.short_name}.`)
+    }
+
+    const serializedValue = await serializeDopTree(
+      dop,
+      messageId,
+      path,
+      messageValueStore,
+      valueStore
+    )
+
+    if (serializedValue !== undefined)
+      values[parameter.short_name] = serializedValue
+  }
+
+  return values
+}
+
+async function serializeDopValue(
+  dop: DopBase,
+  value: AtomicParameterValue | undefined,
+  messageId: string,
+  path: string,
+  messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
+  valueStore: ParameterValueStore
+): Promise<unknown> {
+  if (isDtcDop(dop)) {
+    if (value === undefined || value === '') return undefined
+
+    const code = Number(value)
+
+    if (!Number.isInteger(code))
+      throw new Error('Select a valid diagnostic trouble code.')
+
+    return code
+  }
+
+  if (isDataObjectPropertyDop(dop)) {
+    if (value === undefined) return undefined
+
+    const inputSpec = getParameterValueInputSpec(dop)
+
+    if (value === '' && inputSpec?.kind !== 'text') return undefined
+
+    if (inputSpec?.kind === 'number') {
+      const numericValue = Number(value)
+
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(
+          `${dop.short_name ?? 'Parameter'} must be a valid number.`
+        )
+      }
+
+      return numericValue
+    }
+
+    return value
+  }
+
+  if (isBasicStructureDop(dop)) {
+    return serializeMessageParameters(
+      (dop.parameters ?? []) as ParameterUnionType[],
+      messageId,
+      path,
+      messageValueStore,
+      valueStore
+    )
+  }
+
+  if (isFieldDop(dop)) {
+    const itemRef = dop.structure_ref ?? dop.env_data_desc_ref
+
+    const itemDopId = itemRef?.resolved_object_ephemeral_id
+
+    if (itemDopId === undefined) {
+      throw new Error(
+        `${dop.short_name ?? 'Repeated field'} has no resolved item definition.`
+      )
+    }
+
+    const itemDop = await valueStore.loadDop(itemDopId)
+
+    if (itemDop === undefined) {
+      throw new Error(
+        `Could not load an item definition for ${dop.short_name ?? 'repeated field'}.`
+      )
+    }
+
+    const fixedCount = isStaticFieldDop(dop)
+      ? dop.fixed_number_of_items
+      : undefined
+    const minItems = isEndOfPduFieldDop(dop)
+      ? (dop.min_number_of_items ?? 0)
+      : 0
+    const storedCount = Number(
+      messageValueStore.getValue(messageId, `${path}#count`)
+    )
+    const itemCount =
+      fixedCount ??
+      (Number.isInteger(storedCount) && storedCount >= minItems
+        ? storedCount
+        : minItems)
+
+    return Promise.all(
+      Array.from({ length: itemCount }, (_, index) =>
+        serializeDopTree(
+          itemDop,
+          messageId,
+          `${path}[${index}]`,
+          messageValueStore,
+          valueStore
+        )
+      )
+    )
+  }
+
+  if (isMultiplexerDop(dop)) {
+    const selectedKey = messageValueStore.getValue(messageId, `${path}#case`)
+
+    if (typeof selectedKey !== 'string' || selectedKey === '') return undefined
+
+    const selectedCase =
+      selectedKey === '#default'
+        ? dop.default_case
+        : dop.cases?.find((item) => item.short_name === selectedKey)
+    const structureId =
+      selectedCase?.structure_ref?.resolved_object_ephemeral_id
+
+    if (selectedCase?.short_name === undefined || structureId === undefined) {
+      throw new Error(
+        `The selected case for ${dop.short_name ?? 'multiplexer'} is incomplete.`
+      )
+    }
+
+    const structure = await valueStore.loadDop(structureId)
+
+    if (structure === undefined) {
+      throw new Error(
+        `Could not load the selected case for ${dop.short_name ?? 'multiplexer'}.`
+      )
+    }
+
+    return [
+      selectedCase.short_name,
+      await serializeDopTree(
+        structure,
+        messageId,
+        `${path}.${selectedKey}`,
+        messageValueStore,
+        valueStore
+      ),
+    ]
+  }
+
+  if (isEnvironmentDataDescriptionDop(dop)) {
+    const selectedKey = messageValueStore.getValue(messageId, `${path}#envData`)
+
+    if (typeof selectedKey !== 'string' || selectedKey === '') return undefined
+
+    const inlineIndex = selectedKey.startsWith('inline-')
+      ? Number(selectedKey.slice('inline-'.length))
+      : undefined
+    const selectedData =
+      inlineIndex === undefined ? undefined : dop.env_datas?.[inlineIndex]
+    const selectedReference =
+      inlineIndex === undefined
+        ? dop.env_data_refs?.[Number(selectedKey.slice('ref-'.length))]
+        : undefined
+
+    const selectedName =
+      selectedData?.short_name ?? selectedReference?.resolved_object_short_name
+
+    if (!selectedName || (!selectedData && !selectedReference)) {
+      throw new Error(
+        `The selected environment data for ${dop.short_name ?? 'parameter'} is unavailable.`
+      )
+    }
+
+    if (selectedData !== undefined) {
+      return serializeMessageParameters(
+        (selectedData.parameters ?? []) as ParameterUnionType[],
+        messageId,
+        `${path}.${selectedName}`,
+        messageValueStore,
+        valueStore
+      )
+    }
+
+    const selectedDopId = selectedReference?.resolved_object_ephemeral_id
+
+    const selectedDop =
+      selectedDopId === undefined
+        ? undefined
+        : await valueStore.loadDop(selectedDopId)
+
+    return selectedDop === undefined
+      ? undefined
+      : serializeDopTree(
+          selectedDop,
+          messageId,
+          `${path}.${selectedName}`,
+          messageValueStore,
+          valueStore
+        )
+  }
+
+  return undefined
+}
+
+async function serializeDopTree(
+  dop: DopBase,
+  messageId: string,
+  path: string,
+  messageValueStore: NonNullable<ReturnType<typeof useMessageValueStore>>,
+  valueStore: ParameterValueStore
+): Promise<unknown> {
+  const value = messageValueStore.getValue(messageId, path)
+
+  return serializeDopValue(
+    dop,
+    value,
+    messageId,
+    path,
+    messageValueStore,
+    valueStore
+  )
+}
+
+async function hydrateMessageParameters(
+  parameters: ParameterUnionType[],
+  physicalValues: Record<string, unknown>,
+  parentPath: string,
+  hydratedValues: Record<string, AtomicParameterValue>,
+  valueStore: ParameterValueStore
+): Promise<number> {
+  let updatedValueCount = 0
+
+  for (const parameter of parameters) {
+    if (
+      !isValueParameterType(parameter) ||
+      !parameter.short_name ||
+      !Object.prototype.hasOwnProperty.call(
+        physicalValues,
+        parameter.short_name
+      )
+    ) {
+      continue
+    }
+
+    const path = parentPath
+      ? `${parentPath}.${parameter.short_name}`
+      : getParameterValueKey(parameter)
+    const dopId = parameter.dop_ref?.resolved_object_ephemeral_id
+
+    if (dopId === undefined) continue
+
+    const dop = await valueStore.loadDop(dopId)
+
+    if (dop === undefined) continue
+
+    updatedValueCount += await hydrateDopValue(
+      dop,
+      physicalValues[parameter.short_name],
+      path,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  return updatedValueCount
+}
+
+async function hydrateDopValue(
+  dop: DopBase,
+  physicalValue: unknown,
+  path: string,
+  hydratedValues: Record<string, AtomicParameterValue>,
+  valueStore: ParameterValueStore
+): Promise<number> {
+  if (physicalValue === undefined || physicalValue === null) return 0
+
+  if (isDtcDop(dop)) {
+    const troubleCode = Number(physicalValue)
+
+    if (!Number.isInteger(troubleCode)) return 0
+    hydratedValues[path] = troubleCode.toString()
+
+    return 1
+  }
+
+  if (isDataObjectPropertyDop(dop)) {
+    const inputSpec = getParameterValueInputSpec(dop)
+
+    if (inputSpec === undefined) return 0
+
+    if (inputSpec.kind === 'boolean') {
+      if (typeof physicalValue === 'boolean') {
+        hydratedValues[path] = physicalValue
+
+        return 1
+      }
+      if (physicalValue === 'true' || physicalValue === 'false') {
+        hydratedValues[path] = physicalValue === 'true'
+
+        return 1
+      }
+
+      return 0
+    }
+
+    if (
+      typeof physicalValue === 'string' ||
+      typeof physicalValue === 'number'
+    ) {
+      hydratedValues[path] = physicalValue.toString()
+
+      return 1
+    }
+
+    return 0
+  }
+
+  if (isBasicStructureDop(dop)) {
+    if (!isRecord(physicalValue)) return 0
+    if (Object.keys(physicalValue).length > 0) {
+      hydratedValues[`${path}#expanded`] = true
+    }
+
+    return hydrateMessageParameters(
+      (dop.parameters ?? []) as ParameterUnionType[],
+      physicalValue,
+      path,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  if (isFieldDop(dop)) {
+    if (!Array.isArray(physicalValue)) return 0
+
+    const itemRef = dop.structure_ref ?? dop.env_data_desc_ref
+    const itemDopId = itemRef?.resolved_object_ephemeral_id
+
+    if (itemDopId === undefined) return 0
+
+    const itemDop = await valueStore.loadDop(itemDopId)
+
+    if (itemDop === undefined) return 0
+
+    hydratedValues[`${path}#count`] = physicalValue.length.toString()
+    if (physicalValue.length > 0) hydratedValues[`${path}#expanded`] = true
+
+    let updatedValueCount = 0
+
+    for (let index = 0; index < physicalValue.length; index += 1) {
+      updatedValueCount += await hydrateDopValue(
+        itemDop,
+        physicalValue[index],
+        `${path}[${index}]`,
+        hydratedValues,
+        valueStore
+      )
+    }
+
+    return updatedValueCount
+  }
+
+  if (isMultiplexerDop(dop)) {
+    if (
+      !Array.isArray(physicalValue) ||
+      physicalValue.length !== 2 ||
+      typeof physicalValue[0] !== 'string'
+    ) {
+      return 0
+    }
+
+    const caseName = physicalValue[0]
+    const useDefaultCase = dop.default_case?.short_name === caseName
+    const caseKey = useDefaultCase ? '#default' : caseName
+    const selectedCase = useDefaultCase
+      ? dop.default_case
+      : dop.cases?.find((item) => item.short_name === caseName)
+    const structureId =
+      selectedCase?.structure_ref?.resolved_object_ephemeral_id
+
+    if (selectedCase === undefined || structureId === undefined) return 0
+
+    const structure = await valueStore.loadDop(structureId)
+
+    if (structure === undefined) return 0
+
+    hydratedValues[`${path}#case`] = caseKey
+    hydratedValues[`${path}#expanded`] = true
+
+    return hydrateDopValue(
+      structure,
+      physicalValue[1],
+      `${path}.${caseKey}`,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  if (isEnvironmentDataDescriptionDop(dop) && isRecord(physicalValue)) {
+    const candidates = [
+      ...(dop.env_datas ?? []).map((data, index) => ({
+        key: `inline-${index}`,
+        data: data as DopBase,
+      })),
+    ]
+
+    for (const [index, reference] of Array.from(
+      (dop.env_data_refs ?? []).entries()
+    )) {
+      const id = reference.resolved_object_ephemeral_id
+      const data = id === undefined ? undefined : await valueStore.loadDop(id)
+
+      if (data) candidates.push({ key: `ref-${index}`, data })
+    }
+    const selected = candidates.find(
+      ({ data }) =>
+        isBasicStructureDop(data) &&
+        Object.keys(physicalValue).every((key) =>
+          data.parameters?.some((parameter) => parameter.short_name === key)
+        )
+    )
+
+    if (!selected) return 0
+    hydratedValues[`${path}#envData`] = selected.key
+    hydratedValues[`${path}#expanded`] = true
+
+    return hydrateDopValue(
+      selected.data,
+      physicalValue,
+      `${path}.${selected.data.short_name}`,
+      hydratedValues,
+      valueStore
+    )
+  }
+
+  return 0
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 export function ParameterDetailsComponent({

@@ -81,38 +81,11 @@ import {
   VerticalDotsIcon,
 } from '@/components/icons'
 import { ParametersComponent } from '@/components/parameters'
+import { DiagnosticMessageKind } from '@/components/diagnostic-message-codec'
 import { subtitleWithSize } from '@/components/primitives'
 import { SpecialDataGroupsComponent } from '@/components/specialdatagroups'
 import { DiagnosticCommTargetObjectIds } from '@/types/index'
 import { cleanupHtmlContent, constrainTextByLength } from '@/utils/utils'
-
-export function PreviousPageButton({
-  isDisabled,
-  onPress,
-}: {
-  isDisabled: boolean
-  onPress: (e: PressEvent) => void
-}) {
-  return (
-    <Button isDisabled={isDisabled} size="md" variant="flat" onPress={onPress}>
-      Previous
-    </Button>
-  )
-}
-
-export function NextPageButton({
-  isDisabled,
-  onPress,
-}: {
-  isDisabled: boolean
-  onPress: (e: PressEvent) => void
-}) {
-  return (
-    <Button isDisabled={isDisabled} size="md" variant="flat" onPress={onPress}>
-      Next
-    </Button>
-  )
-}
 
 export function AddNewButton() {
   return (
@@ -163,7 +136,6 @@ export function ActionDropdown({
         <DropdownItem key="view" href={view_href}>
           View
         </DropdownItem>
-        <DropdownItem key="edit">Edit</DropdownItem>
         <DropdownItem key="delete" onPress={deleteFunc}>
           Delete
         </DropdownItem>
@@ -519,10 +491,14 @@ export function CommonRequestResponseComponent({
   reqResponse,
   targetObjectIds,
   pageId,
+  messageKind,
+  triggeringRequest,
 }: {
   reqResponse: Request | Response
   targetObjectIds: DiagnosticCommTargetObjectIds
   pageId: string
+  messageKind: DiagnosticMessageKind
+  triggeringRequest?: Request
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -538,9 +514,11 @@ export function CommonRequestResponseComponent({
         </div>
         {reqResponse.parameters ? (
           <ParametersComponent
+            messageKind={messageKind}
             pageId={pageId}
             parentObject={reqResponse}
             targetObjectIds={targetObjectIds}
+            triggeringRequest={triggeringRequest}
           />
         ) : (
           <div className="pt-4 place-self-start">
@@ -667,10 +645,12 @@ export function OdxLinkPopoverComponent({
   odxLink,
   href,
   label,
+  children,
 }: {
   odxLink: OdxLinkRef | undefined
   href?: string
   label?: string
+  children?: React.ReactNode
 }) {
   return odxLink ? (
     <Popover
@@ -679,6 +659,7 @@ export function OdxLinkPopoverComponent({
         content: ['border border-blue-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -695,7 +676,12 @@ export function OdxLinkPopoverComponent({
       </PopoverTrigger>
       <PopoverContent>
         {(titleProps) => (
-          <div className="px-1 py-2">
+          <div
+            className={clsx(
+              'px-1 py-2',
+              children && 'h-[28rem] max-w-xl overflow-y-auto'
+            )}
+          >
             <div className="grid grid-cols-2 gap-1">
               <h3
                 className="text-lg font-bold justify-self-start"
@@ -714,6 +700,12 @@ export function OdxLinkPopoverComponent({
                 )}
               </div>
             </div>
+            {children ? (
+              <>
+                {children}
+                <Divider className="my-3" />
+              </>
+            ) : null}
             <OdxLinkComponent odxLink={odxLink} />
           </div>
         )}
@@ -835,6 +827,7 @@ export function DiagCodedTypePopoverComponent({
         content: ['border border-blue-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -1219,6 +1212,7 @@ export function PhysicalTypePopoverComponent({
         content: ['border border-lime-600'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -1265,6 +1259,7 @@ export function CompuMethodPopoverComponent({
         content: ['border border-teal-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>
@@ -1311,6 +1306,7 @@ export function InternalConstraintPopoverComponent({
         content: ['border border-red-700'],
       }}
       placement="right"
+      shouldCloseOnScroll={false}
       showArrow={true}
     >
       <PopoverTrigger>

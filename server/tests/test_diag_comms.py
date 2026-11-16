@@ -6,6 +6,117 @@ This module tests different aspects regarding the exploration of Diagnostic Comm
 from tests.utils import get_somersault_perma_id, json_dict_from_response
 
 
+def test_get_report_dtc_by_status_mask(
+    diag_schema, diag_client, upload_pdx_data, somersault_data_set_perma_id
+) -> None:
+    variant_id = get_somersault_perma_id(
+        "somersault.base_variant", "somersault_base_variant"
+    )
+    service_id = get_somersault_perma_id(
+        "somersault.service.ReportDTCByStatusMask", "somersault_base_variant"
+    )
+    assert variant_id is not None
+    assert service_id is not None
+
+    response = diag_client.get(
+        f"/v1/diagnostic-data-sets/{somersault_data_set_perma_id}/variants/{variant_id}/diag-comms/{service_id}"
+    )
+    assert response.status_code == 200
+    diag_schema[
+        "/diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}"
+    ]["GET"].validate_response(response)
+    service = json_dict_from_response(response)
+    assert service["short_name"] == "ReportDTCByStatusMask"
+    assert service["class_name"] == "DiagService"
+    assert service["uds_service"]["service_id"] == 0x19
+
+    request = service["request"]
+    assert request["short_name"] == "RQ_ReportDTCByStatusMask"
+    request_params = {param["short_name"]: param for param in request["parameters"]}
+    assert request_params["SID_RQ"]["coded_value"] == 0x19
+    assert request_params["SID_RQ"]["byte_position"] == 0
+    assert request_params["ReportDTCByStatusMask"]["coded_value"] == 0x02
+    assert request_params["ReportDTCByStatusMask"]["byte_position"] == 1
+    status_names = [
+        "TestFailed",
+        "TestFailedThisOperationCycle",
+        "PendingDTC",
+        "ConfirmedDTC",
+        "TestNotCompletedSinceLastClear",
+        "TestFailedSinceLastClear",
+        "TestNotCompletedThisOperationCycle",
+        "WarningIndicatorRequested",
+    ]
+    for bit, name in enumerate(status_names):
+        assert request_params[name]["class_name"] == "ValueParameter"
+        assert request_params[name]["byte_position"] == 2
+        assert request_params[name]["bit_position"] == bit
+        assert request_params[name]["dop_ref"]["resolved_object_short_name"] == name
+
+    assert len(service["positive_responses"]) == 1
+    positive_response = service["positive_responses"][0]
+    assert positive_response["short_name"] == "PR_ReportDTCByStatusMask"
+    positive_params = {
+        param["short_name"]: param for param in positive_response["parameters"]
+    }
+    assert positive_params["SID_PR"]["coded_value"] == 0x59
+    assert positive_params["SID_PR"]["byte_position"] == 0
+    assert positive_params["ReportDTCByStatusMask"]["coded_value"] == 0x02
+    assert positive_params["ReportDTCByStatusMask"]["byte_position"] == 1
+    for bit, name in enumerate(status_names):
+        expected_class = "ValueParameter" if bit in (0, 3, 4, 5) else "ReservedParameter"
+        assert positive_params[name]["class_name"] == expected_class
+        assert positive_params[name]["byte_position"] == 2
+        assert positive_params[name]["bit_position"] == bit
+    assert positive_params["DTCAndStatusRecord"]["byte_position"] == 3
+
+    def get_structured_object(schema_name, ephemeral_id):
+        result = diag_client.get(f"/v1/structured-data/{schema_name}/{ephemeral_id}")
+        assert result.status_code == 200
+        diag_schema["/structured-data/{schema-name}/{ephemeral-id}"]["GET"].validate_response(
+            result
+        )
+        return json_dict_from_response(result)
+
+    field = get_structured_object(
+        "EndOfPduField",
+        positive_params["DTCAndStatusRecord"]["dop_ref"]["resolved_object_ephemeral_id"],
+    )
+    assert field["class_name"] == "EndOfPduField"
+    assert field["min_number_of_items"] == 0
+    structure = get_structured_object(
+        "Structure", field["structure_ref"]["resolved_object_ephemeral_id"]
+    )
+    assert structure["short_name"] == "DTCAndStatusRecord"
+    assert structure["byte_size"] == 4
+    record_params = {param["short_name"]: param for param in structure["parameters"]}
+    assert record_params["DTCRecord"]["byte_position"] == 0
+    for bit, name in enumerate(status_names):
+        expected_class = "ValueParameter" if bit in (0, 3, 4, 5) else "ReservedParameter"
+        assert record_params[name]["class_name"] == expected_class
+        assert record_params[name]["byte_position"] == 3
+        assert record_params[name]["bit_position"] == bit
+    dtc_dop = get_structured_object(
+        "DtcDop", record_params["DTCRecord"]["dop_ref"]["resolved_object_ephemeral_id"]
+    )
+    assert dtc_dop["short_name"] == "dtc_dop_all"
+    assert dtc_dop["diag_coded_type"]["bit_length"] == 24
+    assert [dtc["trouble_code"] for dtc in dtc_dop["dtcs"]] == [4097, 4098]
+    assert [dtc["display_trouble_code"] for dtc in dtc_dop["dtcs"]] == ["P1001", "B1002"]
+
+    assert len(service["negative_responses"]) == 1
+    negative_params = {
+        param["short_name"]: param for param in service["negative_responses"][0]["parameters"]
+    }
+    assert negative_params["sid"]["coded_value"] == 0x7F
+    assert negative_params["sid"]["byte_position"] == 0
+    assert negative_params["rq_sid"]["class_name"] == "MatchingRequestParameter"
+    assert negative_params["rq_sid"]["request_byte_position"] == 0
+    assert negative_params["rq_sid"]["byte_position"] == 1
+    assert negative_params["rq_sid"]["byte_length"] == 1
+    assert negative_params["response_code"]["byte_position"] == 2
+
+
 def test_get_all_diag_comms(diag_schema, diag_client, upload_pdx_data) -> None:
     # Get all DiagComms using GET /diag-comms
     response = diag_client.get("/v1/diag-comms")
@@ -15,7 +126,7 @@ def test_get_all_diag_comms(diag_schema, diag_client, upload_pdx_data) -> None:
     response_collection = json_dict_from_response(response)
 
     assert "diag_comms" in response_collection
-    assert len(response_collection["diag_comms"]) == 10
+    assert len(response_collection["diag_comms"]) == 11
     for diag_comm_with_refs in response_collection["diag_comms"]:
         assert "referencing_variant_perma_ids" in diag_comm_with_refs
         assert len(diag_comm_with_refs["referencing_variant_perma_ids"]) > 0
@@ -40,7 +151,7 @@ def test_get_all_diag_comms_with_filter(diag_schema, diag_client, upload_pdx_dat
     diag_schema["/diag-comms"]["GET"].validate_response(response)
     response_collection = json_dict_from_response(response)
     assert "diag_comms" in response_collection
-    assert len(response_collection["diag_comms"]) == 10
+    assert len(response_collection["diag_comms"]) == 11
     for diag_comm_with_refs in response_collection["diag_comms"]:
         assert "referencing_variant_perma_ids" in diag_comm_with_refs
         assert len(diag_comm_with_refs["referencing_variant_perma_ids"]) > 0
@@ -67,7 +178,7 @@ def test_get_all_diag_comms_with_wrong_filter(diag_schema, diag_client, upload_p
     diag_schema["/diag-comms"]["GET"].validate_response(response)
     response_collection = json_dict_from_response(response)
     assert "diag_comms" in response_collection
-    assert len(response_collection["diag_comms"]) == 10
+    assert len(response_collection["diag_comms"]) == 11
     for diag_comm_with_refs in response_collection["diag_comms"]:
         assert "referencing_variant_perma_ids" in diag_comm_with_refs
         assert len(diag_comm_with_refs["referencing_variant_perma_ids"]) > 0
@@ -169,7 +280,7 @@ def test_get_diag_comms_of_variant(
     response_collection = json_dict_from_response(response)
     assert response.status_code == 200
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 9
+    assert len(response_collection["items"]) == 10
     for diag_comm in response_collection["items"]:
         assert "origin_layer_perma_id" in diag_comm
         assert "origin_layer_ephemeral_id" in diag_comm
@@ -199,7 +310,7 @@ def test_get_diag_comms_of_variant(
     response_collection = json_dict_from_response(response)
     assert response.status_code == 200
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 7
+    assert len(response_collection["items"]) == 8
     for diag_comm in response_collection["items"]:
         assert "origin_layer_perma_id" in diag_comm
         assert "origin_layer_ephemeral_id" in diag_comm
@@ -229,7 +340,7 @@ def test_get_diag_comms_of_variant(
     response_collection = json_dict_from_response(response)
     assert response.status_code == 200
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 10
+    assert len(response_collection["items"]) == 11
     for diag_comm in response_collection["items"]:
         assert "short_name" in diag_comm
         assert "origin_layer_perma_id" in diag_comm
@@ -265,7 +376,7 @@ def test_get_diag_comms_of_variant_with_filter(
     response_collection = json_dict_from_response(response)
     assert response.status_code == 200
     assert "items" in response_collection
-    assert len(response_collection["items"]) == 9
+    assert len(response_collection["items"]) == 10
     for diag_comm in response_collection["items"]:
         assert "origin_layer_perma_id" in diag_comm
         assert "origin_layer_ephemeral_id" in diag_comm

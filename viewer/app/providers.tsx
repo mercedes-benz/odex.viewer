@@ -23,10 +23,23 @@ declare module '@react-types/shared' {
 
 export function Providers({ children, themeProps }: ProvidersProps) {
   const router = useRouter()
+  const hydrated = React.useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false
+  )
 
   return (
     <HeroUIProvider navigate={router.push}>
-      <NextThemesProvider {...themeProps}>{children}</NextThemesProvider>
+      <NextThemesProvider {...themeProps}>
+        <div className="contents" data-hydrated={hydrated} inert={!hydrated}>
+          {children}
+        </div>
+      </NextThemesProvider>
     </HeroUIProvider>
   )
+}
+
+function subscribe() {
+  return () => {}
 }

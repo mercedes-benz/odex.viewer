@@ -4,6 +4,7 @@ Module providing the API endpoint implementations invoked via the generated cont
 """
 
 import dataclasses
+import re
 from dataclasses import is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -14,50 +15,89 @@ from typing import Any, cast
 import odxtools.diagcomm
 import odxtools.exceptions
 from connexion.lifecycle import ConnexionResponse
-from diag_server import const, model_utils, odx_util, response_codes
-from diag_server.globals import logger
-from diag_server.model_utils import (get_diag_data_set_perma_id, get_perma_id,
-                                     resolve_model_class_mappings,
-                                     translate_to_model)
-from diag_server.odx_util import DatabaseWithID
-from diag_server.openapi_server import models
-from diag_server.openapi_server.models import (
-    CompanyData, ContainerType, CreatedResourceReference, DiagCommCollection,
-    DiagCommDetails, DiagCommGenericInfo, DiagCommInfo, DiagCommRef,
-    DiagCommsOfVariantsOfDataSetsCollection, DiagCommWithDataSetsVariantRefs,
-    DiagLayerType, DiagnosticDataCollection, DiagnosticDataSetDescriptor,
-    DiagnosticDataSetRef, DiagnosticDataTypeCollection,
-    DiagnosticLayerContainerInfo, DiagnosticVariant,
-    DiagnosticVariantsCollection, DopBase, DopCollection,
-    DopsOfVariantsOfDataSetsCollection, DopWithDataSetsVariantRefs,
-    DopWithOriginLayerInfo, DtcCollection, DtcsOfVariantsOfDataSetsCollection,
-    DtcWithDataSetsVariantRefs, DtcWithDopInfo, JsonProblem, Modification,
-    NamedObjectIdRef, ObjectMetadata, OdxAny, ParentRef, Revision,
-    RevisionHistory, SpecialDataGroup, StateChart, StateChartCollection,
-    StateChartMetaData, StateChartWithMetaData,
-    StateChartWithMetaDataCollection, StateTransitionWithDiagCommRefs,
-    TeamMember, UdsServiceInfo, VariantObjectRef, VariantPatternInner)
-from diag_server.response_codes import api_jsonifier
-from odxtools.basevariantpattern import \
-    BaseVariantPattern as OdxToolsBaseVariantPattern
-from odxtools.diaglayercontainer import \
-    DiagLayerContainer as OdxToolsDiagLayerContainer
+from odxtools.basevariantpattern import BaseVariantPattern as OdxToolsBaseVariantPattern
+from odxtools.diaglayercontainer import DiagLayerContainer as OdxToolsDiagLayerContainer
 from odxtools.diaglayers.basevariant import BaseVariant as OdxToolsBaseVariant
 from odxtools.diaglayers.diaglayer import DiagLayer as OdxToolsDiagLayer
-from odxtools.diaglayers.ecushareddata import \
-    EcuSharedData as OdxToolsEcuSharedData
+from odxtools.diaglayers.ecushareddata import EcuSharedData as OdxToolsEcuSharedData
 from odxtools.diaglayers.ecuvariant import EcuVariant as OdxToolsEcuVariant
-from odxtools.diagnostictroublecode import \
-    DiagnosticTroubleCode as OdxToolsDiagnosticTroubleCode
+from odxtools.diagnostictroublecode import DiagnosticTroubleCode as OdxToolsDiagnosticTroubleCode
 from odxtools.diagservice import DiagService as OdxToolsDiagService
 from odxtools.dopbase import DopBase as OdxToolsDopBase
 from odxtools.dtcdop import DtcDop as OdxToolsDtcDop
-from odxtools.ecuvariantpattern import \
-    EcuVariantPattern as OdxToolsEcuVariantPattern
+from odxtools.ecuvariantpattern import EcuVariantPattern as OdxToolsEcuVariantPattern
 from odxtools.odxlink import resolve_snref
+from odxtools.odxtypes import DataType
 from odxtools.parameters.parameter import Parameter as OdxToolsParameter
+from odxtools.request import Request as OdxToolsRequest
+from odxtools.response import Response as OdxToolsResponse
 from odxtools.singleecujob import SingleEcuJob as OdxToolsSingleEcuJob
 from werkzeug.datastructures import FileStorage
+
+from diag_server import const, model_utils, odx_util, response_codes
+from diag_server.globals import logger
+from diag_server.message_layout import trace_message_layout
+from diag_server.model_utils import (
+    get_diag_data_set_perma_id,
+    get_perma_id,
+    resolve_model_class_mappings,
+    translate_to_model,
+)
+from diag_server.odx_util import DatabaseWithID
+from diag_server.openapi_server import models
+from diag_server.openapi_server.models import (
+    CompanyData,
+    ContainerType,
+    CreatedResourceReference,
+    DecodeDiagnosticMessageInput,
+    DiagCommCollection,
+    DiagCommDetails,
+    DiagCommGenericInfo,
+    DiagCommInfo,
+    DiagCommRef,
+    DiagCommsOfVariantsOfDataSetsCollection,
+    DiagCommWithDataSetsVariantRefs,
+    DiagLayerType,
+    DiagnosticDataCollection,
+    DiagnosticDataSetDescriptor,
+    DiagnosticDataSetRef,
+    DiagnosticDataTypeCollection,
+    DiagnosticLayerContainerInfo,
+    DiagnosticMessageCodecResult,
+    DiagnosticParameterLayout,
+    DiagnosticVariant,
+    DiagnosticVariantsCollection,
+    DopBase,
+    DopCollection,
+    DopsOfVariantsOfDataSetsCollection,
+    DopWithDataSetsVariantRefs,
+    DopWithOriginLayerInfo,
+    DtcCollection,
+    DtcsOfVariantsOfDataSetsCollection,
+    DtcWithDataSetsVariantRefs,
+    DtcWithDopInfo,
+    EncodeDiagnosticMessageInput,
+    JsonProblem,
+    Modification,
+    NamedObjectIdRef,
+    ObjectMetadata,
+    OdxAny,
+    ParentRef,
+    Revision,
+    RevisionHistory,
+    SpecialDataGroup,
+    StateChart,
+    StateChartCollection,
+    StateChartMetaData,
+    StateChartWithMetaData,
+    StateChartWithMetaDataCollection,
+    StateTransitionWithDiagCommRefs,
+    TeamMember,
+    UdsServiceInfo,
+    VariantObjectRef,
+    VariantPatternInner,
+)
+from diag_server.response_codes import api_jsonifier
 
 # Maps the diagnostic data types with the uploaded data
 diag_data_type_descriptor_map: dict[
@@ -86,6 +126,8 @@ dtc_source_dop_dict: dict[str, dict[str, str]] = {}
 dop_source_layer_dict: dict[str, dict[str, OdxToolsDiagLayer]] = {}
 
 state_chart_source_layer_dict: dict[str, dict[str, OdxToolsDiagLayer]] = {}
+
+_DIAGNOSTIC_HEX_PATTERN = re.compile(r"^[ \t\r\n]*(?:[0-9a-fA-F]{2}[ \t\r\n]*)+$")
 
 # Resolve all OpenAPI schema names and their Python class/type definitions
 # from the generated classes in the 'models' submodule
@@ -2546,3 +2588,280 @@ def get_all_dtcs_from_all_diagnostic_data_sets(
         200,
         {"Content-Type": "application/json"},
     )
+
+
+def _get_diagnostic_codec_context(
+    diag_data_set_id: str,
+    variant_perma_id: str,
+    diag_comm_perma_id: str,
+    message_perma_id: str,
+) -> (
+    tuple[DatabaseWithID, OdxToolsDiagService, OdxToolsRequest | OdxToolsResponse, bool]
+    | ConnexionResponse
+):
+    if diag_data_set_id not in perma_id_dicts:
+        return response_codes.default404(
+            exception=f"A diagnostic data set with the given id '{diag_data_set_id}' is not found."
+        )
+    odx_db = model_utils.database_id_dict.get(diag_data_set_id)
+    if not isinstance(odx_db, DatabaseWithID):
+        return response_codes.default404(
+            exception=f"A database object for diagnostic data set with id '{diag_data_set_id}' was not found."
+        )
+
+    objects = perma_id_dicts[diag_data_set_id]
+    variant = objects.get(variant_perma_id)
+    if variant is None:
+        return response_codes.default404(
+            exception=f"Variant with permanent object id '{variant_perma_id}' not found"
+        )
+    if not isinstance(variant, (OdxToolsEcuVariant, OdxToolsBaseVariant)):
+        return response_codes.default400(
+            exception=f"The given permanent object id '{variant_perma_id}' does not belong to a diagnostic variant object."
+        )
+
+    diag_comm = objects.get(diag_comm_perma_id)
+    if diag_comm is None:
+        return response_codes.default404(
+            exception=f"DiagService with permanent object id '{diag_comm_perma_id}' not found"
+        )
+    if not isinstance(diag_comm, OdxToolsDiagService):
+        return response_codes.default400(
+            exception=f"The given permanent object id '{diag_comm_perma_id}' does not belong to a DiagService object."
+        )
+    if diag_comm_perma_id not in {get_perma_id(item) for item in variant.diag_comms}:
+        return response_codes.default400(
+            exception="The diagnostic communication does not belong to the selected variant."
+        )
+
+    request = diag_comm.request
+    positive_responses = diag_comm.positive_responses
+    negative_responses = diag_comm.negative_responses
+    messages: list[tuple[OdxToolsRequest | OdxToolsResponse, bool]] = (
+        [(request, True)] if request is not None else []
+    )
+    messages.extend((item, False) for item in chain(positive_responses, negative_responses))
+    selected_message = next(
+        (item for item, _ in messages if get_perma_id(item) == message_perma_id), None
+    )
+    if selected_message is None:
+        if message_perma_id not in objects:
+            return response_codes.default404(
+                exception=f"Message with permanent object id '{message_perma_id}' not found"
+            )
+        return response_codes.default400(
+            exception="The diagnostic message does not belong to the selected diagnostic communication."
+        )
+
+    is_request = get_perma_id(request) == message_perma_id if request is not None else False
+    return odx_db, diag_comm, selected_message, is_request
+
+
+def _codec_input_value(codec_input: Any, name: str) -> Any:
+    if isinstance(codec_input, dict):
+        return codec_input.get(name)
+    return getattr(codec_input, name, None)
+
+
+def _encode_nested_value(value: Any, dop: Any) -> Any:
+    physical_type = getattr(dop, "physical_type", None)
+    if (
+        isinstance(value, str)
+        and getattr(physical_type, "base_data_type", None) == DataType.A_BYTEFIELD
+    ):
+        if not _DIAGNOSTIC_HEX_PATTERN.fullmatch(value):
+            raise ValueError("Byte-field values must contain complete hexadecimal byte pairs.")
+        return bytes.fromhex(value)
+
+    structure = getattr(dop, "structure", None)
+    if structure is None and hasattr(dop, "parameters"):
+        structure = dop
+    parameters = {param.short_name: param for param in getattr(structure, "parameters", [])}
+    if isinstance(value, dict) and parameters:
+        return {
+            name: _encode_nested_value(item, getattr(parameters.get(name), "dop", None))
+            for name, item in value.items()
+        }
+    if isinstance(value, list):
+        cases = getattr(dop, "cases", None) or getattr(dop, "table_rows", None) or []
+        if len(value) == 2 and isinstance(value[0], str) and cases:
+            selected_case = next((case for case in cases if case.short_name == value[0]), None)
+            case_structure = getattr(selected_case, "structure", None)
+            return (
+                value[0],
+                _encode_nested_value(value[1], case_structure),
+            )
+        if structure is not None and parameters:
+            return [
+                _encode_nested_value(item, structure) if isinstance(item, dict) else item
+                for item in value
+            ]
+        return [_encode_nested_value(item, None) for item in value]
+    return value
+
+
+def _encode_message_values(message: Any, values: dict[str, Any]) -> dict[str, Any]:
+    parameters = {param.short_name: param for param in message.parameters}
+    return {
+        name: _encode_nested_value(value, getattr(parameters.get(name), "dop", None))
+        for name, value in values.items()
+    }
+
+
+def _json_physical_value(value: Any) -> Any:
+    if isinstance(value, OdxToolsDiagnosticTroubleCode):
+        return value.trouble_code
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return bytes(value).hex(" ").upper()
+    if isinstance(value, Enum):
+        return _json_physical_value(value.value)
+    if isinstance(value, dict):
+        return {str(key): _json_physical_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_physical_value(item) for item in value]
+    if is_dataclass(value) and not isinstance(value, type):
+        return _json_physical_value(dataclasses.asdict(value))
+    return value
+
+
+def _codec_result(
+    message: Any,
+    coded_message: bytes | bytearray,
+    request: OdxToolsRequest | None = None,
+) -> DiagnosticMessageCodecResult:
+    decoded_values = message.decode(coded_message)
+    decoded_values = _json_physical_value(decoded_values)
+    return DiagnosticMessageCodecResult(
+        hex_message=bytes(coded_message).hex(" ").upper(),
+        parameter_values=decoded_values,
+        parameter_layout=[
+            DiagnosticParameterLayout.from_dict(_json_physical_value(item))
+            for item in trace_message_layout(message, coded_message)
+        ],
+    )
+
+
+def decode_diagnostic_message(
+    diag_data_set_id: str,
+    variant_perma_id: str,
+    diag_comm_perma_id: str,
+    message_perma_id: str,
+    decode_diagnostic_message_input: DecodeDiagnosticMessageInput | None,
+) -> tuple[DiagnosticMessageCodecResult, int, dict[str, str]] | ConnexionResponse:
+    """decode_diagnostic_message
+
+    Decode hexadecimal message bytes using the request or response identified by message-perma-id. The message must belong to the selected diagnostic service,
+    and the service must belong to the selected variant. Decoding returns physical parameter values, including constants and derived parameters.
+    No triggering-request values or bytes are required for decoding.
+    Matching-request parameters are extracted from the supplied message; they are not checked against an original request.
+
+    :param diag_data_set_id: ID of the diagnostic data set to fetch
+    :type diag_data_set_id: str
+    :param variant_perma_id: ID of the variant object to fetch
+    :type variant_perma_id: str
+    :param diag_comm_perma_id: ID of the diagnostic communication to fetch
+    :type diag_comm_perma_id: str
+    :param message_perma_id: ID of the message to use for decoding
+    :type message_perma_id: str
+    :param decode_diagnostic_message_input: Input containing the hexadecimal message to decode
+    :type decode_diagnostic_message_input: DecodeDiagnosticMessageInput
+
+    :rtype: DiagnosticMessageCodecResult
+    """
+    context = _get_diagnostic_codec_context(
+        diag_data_set_id, variant_perma_id, diag_comm_perma_id, message_perma_id
+    )
+    if isinstance(context, ConnexionResponse):
+        return context
+    _, diag_comm, message, is_request = context
+    hex_message = _codec_input_value(decode_diagnostic_message_input, "hex_message")
+    if not isinstance(hex_message, str) or not _DIAGNOSTIC_HEX_PATTERN.fullmatch(hex_message):
+        return response_codes.default400(
+            exception="hex_message must contain complete hexadecimal byte pairs."
+        )
+
+    try:
+        coded_message = bytes.fromhex(hex_message)
+        request = None if is_request else diag_comm.request
+        result = _codec_result(message, coded_message, request)
+    except (odxtools.exceptions.OdxError, ValueError, TypeError, KeyError, IndexError) as error:
+        return response_codes.default400(exception=error)
+    return result, 200, {"Content-Type": "application/json"}
+
+
+def encode_diagnostic_message(
+    diag_data_set_id: str,
+    variant_perma_id: str,
+    diag_comm_perma_id: str,
+    message_perma_id: str,
+    encode_diagnostic_message_input: EncodeDiagnosticMessageInput | None,
+) -> tuple[DiagnosticMessageCodecResult, int, dict[str, str]] | ConnexionResponse:
+    """encode_diagnostic_message
+
+    Encode the request or response identified by message-perma-id using its ODX parameter definitions. The message must belong to the selected diagnostic service,
+    and the service must belong to the selected variant. For a request message, parameter_values contains the request values and request_parameter_values must be omitted.
+    For a response message, parameter_values contains the response values and request_parameter_values is required, including an empty object when the request has no required physical values.
+    The backend first encodes the service request from request_parameter_values, then uses those bytes as the triggering request when encoding the response.
+    This applies to positive and negative responses, including responses with matching-request parameters. Clients cannot supply encoded triggering-request bytes.
+    This operation does not transmit data to an ECU. # noqa: E501
+
+    :param diag_data_set_id: ID of the diagnostic data set to fetch
+    :type diag_data_set_id: str
+    :param variant_perma_id: ID of the variant object to fetch
+    :type variant_perma_id: str
+    :param diag_comm_perma_id: ID of the diagnostic communication to fetch
+    :type diag_comm_perma_id: str
+    :param message_perma_id: ID of the diagnostic message to use for encoding
+    :type message_perma_id: str
+    :param encode_diagnostic_message_input: The input for encoding the diagnostic message
+    :type encode_diagnostic_message_input: EncodeDiagnosticMessageInput | None
+
+    :rtype: DiagnosticMessageCodecResult
+    """
+    context = _get_diagnostic_codec_context(
+        diag_data_set_id, variant_perma_id, diag_comm_perma_id, message_perma_id
+    )
+    if isinstance(context, ConnexionResponse):
+        return context
+    _, diag_comm, message, is_request = context
+    parameter_values = _codec_input_value(encode_diagnostic_message_input, "parameter_values")
+    request_parameter_values = _codec_input_value(
+        encode_diagnostic_message_input, "request_parameter_values"
+    )
+    if not isinstance(parameter_values, dict):
+        return response_codes.default400(exception="parameter_values must be an object.")
+    if is_request and request_parameter_values is not None:
+        return response_codes.default400(
+            exception="request_parameter_values must be omitted when encoding a request message."
+        )
+    if not is_request and not isinstance(request_parameter_values, dict):
+        return response_codes.default400(
+            exception="request_parameter_values is required when encoding a response message."
+        )
+
+    error_context = (
+        "Cannot encode request from parameter_values"
+        if is_request
+        else "Cannot encode response from parameter_values"
+    )
+    try:
+        values = _encode_message_values(message, parameter_values)
+        request: OdxToolsRequest | None = None
+        if is_request:
+            coded_message = message.encode(**values)
+        else:
+            request = diag_comm.request
+            if request is None:
+                return response_codes.default400(
+                    exception="Request message is required when encoding a response message."
+                )
+            error_context = "Cannot encode triggering request from request_parameter_values"
+            request_values = _encode_message_values(request, request_parameter_values)
+            coded_request = request.encode(**request_values)
+            error_context = "Cannot encode response from parameter_values"
+            coded_message = message.encode(coded_request=coded_request, **values)
+        error_context = "Cannot decode the encoded message"
+        result = _codec_result(message, coded_message, request)
+    except (odxtools.exceptions.OdxError, ValueError, TypeError, KeyError, IndexError) as error:
+        return response_codes.default400(exception=f"{error_context}: {error}")
+    return result, 200, {"Content-Type": "application/json"}

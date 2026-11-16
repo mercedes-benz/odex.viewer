@@ -4,7 +4,7 @@
 import React from 'react'
 import { Tabs, Tab } from '@heroui/tabs'
 
-import { Response, PosResponseSuppressible } from '@/api/api-hooks'
+import { Request, Response, PosResponseSuppressible } from '@/api/api-hooks'
 import { DiagnosticCommTargetObjectIds } from '@/types/index'
 import { CommonRequestResponseComponent } from '@/components/commons'
 
@@ -12,10 +12,12 @@ export function PosResponsesComponent({
   posResponses,
   targetObjectIds,
   pageId,
+  triggeringRequest,
 }: {
   posResponses: Response[]
   targetObjectIds: DiagnosticCommTargetObjectIds
   pageId: string
+  triggeringRequest?: Request
 }) {
   return posResponses.length > 0 ? (
     <div className="flex w-full flex-col">
@@ -27,9 +29,11 @@ export function PosResponsesComponent({
         {(item: Response) => (
           <Tab key={item.ephemeral_id} title={item.short_name}>
             <CommonRequestResponseComponent
+              messageKind="response"
               pageId={pageId}
               reqResponse={item}
               targetObjectIds={targetObjectIds}
+              triggeringRequest={triggeringRequest}
             />
           </Tab>
         )}
@@ -62,10 +66,12 @@ export function NegResponsesComponent({
   negResponses,
   targetObjectIds,
   pageId,
+  triggeringRequest,
 }: {
   negResponses: Response[]
   targetObjectIds: DiagnosticCommTargetObjectIds
   pageId: string
+  triggeringRequest?: Request
 }) {
   return negResponses.length > 0 ? (
     <div className="flex w-full flex-col">
@@ -77,9 +83,11 @@ export function NegResponsesComponent({
         {(item: Response) => (
           <Tab key={item.ephemeral_id} title={item.short_name}>
             <CommonRequestResponseComponent
+              messageKind="response"
               pageId={pageId}
               reqResponse={item}
               targetObjectIds={targetObjectIds}
+              triggeringRequest={triggeringRequest}
             />
           </Tab>
         )}

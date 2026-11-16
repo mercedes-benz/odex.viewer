@@ -164,8 +164,8 @@ export default function RevisionPage() {
 
   const [revisionSortDescriptor, setRevisionSortDescriptor] =
     React.useState<SortDescriptor>({
-      column: 'name',
-      direction: 'ascending',
+      column: 'date',
+      direction: 'descending',
     })
 
   const revisionHeaderColumns = React.useMemo(() => {

@@ -4,7 +4,6 @@
 import { Card, CardBody } from '@heroui/card'
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -20,6 +19,7 @@ import React from 'react'
 
 import {
   DiagnosticDataSetDescriptor,
+  DtcDop,
   DtcWithDopInfo,
   DtcsOfVariantsOfDataSetsCollection,
   DiagnosticVariant,
@@ -31,8 +31,6 @@ import {
   AddNewButton,
   DescriptionComponent,
   DtcLevelChip,
-  NextPageButton,
-  PreviousPageButton,
 } from '@/components/commons'
 import {
   TableColumnDropdown,
@@ -44,6 +42,104 @@ import { ColumnDefinition } from '@/types'
 import { getHexRepresentation, sortItemsBySortDescriptor } from '@/utils/utils'
 import { DiagnosticTroubleCodeTargetObjectIds } from '@/types/index'
 import { useSelectionWithIndexedDB } from '@/storage/settings'
+
+export function DtcDopDetailsTable({ dop }: { dop: DtcDop }) {
+  const [searchValue, setSearchValue] = React.useState('')
+  const query = searchValue.trim().toLowerCase()
+  const rows = (dop.dtcs ?? []).map((dtc, index) => ({
+    dtc,
+    key: dtc.ephemeral_id ?? dtc.perma_id ?? index,
+    troubleCode:
+      dtc.trouble_code === undefined
+        ? 'Not specified'
+        : `${dtc.trouble_code} [${getHexRepresentation(dtc.trouble_code) || '0x0'}]`,
+    temporary:
+      dtc.is_temporary === undefined
+        ? 'Not specified'
+        : dtc.is_temporary
+          ? 'true'
+          : 'false',
+  }))
+  const filteredRows = rows.filter(({ dtc, troubleCode, temporary }) =>
+    [
+      troubleCode,
+      dtc.display_trouble_code,
+      dtc.short_name,
+      dtc.long_name,
+      dtc.text?.text,
+      dtc.description?.text,
+      dtc.level,
+      temporary,
+    ].some((value) => value?.toString().toLowerCase().includes(query))
+  )
+
+  return (
+    <section aria-label="DTC details" className="mb-5 text-start">
+      <p className="mb-2 font-medium">Diagnostic trouble codes</p>
+      <Table
+        isHeaderSticky
+        isStriped
+        aria-label="DTC details table"
+        classNames={{
+          wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-auto',
+        }}
+        selectionMode="none"
+        topContent={
+          <div className="flex flex-col gap-2">
+            <Input
+              isClearable
+              aria-label="Search DTC details"
+              className="w-full sm:max-w-[44%]"
+              placeholder="Search in visible columns..."
+              startContent={<SearchIcon />}
+              value={searchValue}
+              onClear={() => setSearchValue('')}
+              onValueChange={setSearchValue}
+            />
+            <span className="text-small" role="status">
+              {filteredRows.length} of total {rows.length} diagnostic trouble
+              codes
+            </span>
+          </div>
+        }
+        topContentPlacement="outside"
+      >
+        <TableHeader>
+          <TableColumn>TROUBLE CODE</TableColumn>
+          <TableColumn>DISPLAY CODE</TableColumn>
+          <TableColumn>SHORT NAME</TableColumn>
+          <TableColumn>LONG NAME</TableColumn>
+          <TableColumn>TEXT</TableColumn>
+          <TableColumn>DESCRIPTION</TableColumn>
+          <TableColumn>LEVEL</TableColumn>
+          <TableColumn>TEMPORARY</TableColumn>
+        </TableHeader>
+        <TableBody emptyContent="No DTCs found">
+          {filteredRows.map(({ dtc, key, troubleCode, temporary }) => (
+            <TableRow key={key}>
+              <TableCell>{troubleCode}</TableCell>
+              <TableCell>{dtc.display_trouble_code}</TableCell>
+              <TableCell>{dtc.short_name}</TableCell>
+              <TableCell>{dtc.long_name}</TableCell>
+              <TableCell>{dtc.text?.text}</TableCell>
+              <TableCell>
+                <DescriptionComponent
+                  description={dtc.description}
+                  enableUnfolding={true}
+                  initialState="uncollapsed"
+                />
+              </TableCell>
+              <TableCell>
+                <DtcLevelChip level={dtc.level} />
+              </TableCell>
+              <TableCell>{temporary}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  )
+}
 
 export function DtcMetadataComponent({
   dtcData,
@@ -187,7 +283,6 @@ export function DtcsVariantComponent({
     'display_trouble_code',
     'text',
     'level',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -285,11 +380,6 @@ export function DtcsVariantComponent({
 
     return arr
   }, [selectedOriginLayers])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [selectedLevels, selectedOriginDtcDop, selectedOriginLayers])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
@@ -421,7 +511,10 @@ export function DtcsVariantComponent({
             ? dtc.trouble_code
                 .toString()
                 .toLowerCase()
-                .includes(searchValue.toLowerCase())
+                .includes(searchValue.toLowerCase()) ||
+              (getHexRepresentation(dtc.trouble_code) || '0x0').includes(
+                searchValue.toLowerCase()
+              )
             : false
         }
 
@@ -513,18 +606,8 @@ export function DtcsVariantComponent({
     selectedOriginLayerValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (dtc: DtcWithDopInfo, columnKey: React.Key) => {
@@ -613,30 +696,9 @@ export function DtcsVariantComponent({
     [dtcs]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -644,7 +706,6 @@ export function DtcsVariantComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -676,52 +737,10 @@ export function DtcsVariantComponent({
             {filteredItems.length} of total {dtcs.items.length} diagnostic
             trouble codes
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
-  }, [
-    searchValue,
-    visibleColumns,
-    onSearchChange,
-    onRowsPerPageChange,
-    filteredItems,
-    dtcs,
-  ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
+  }, [searchValue, visibleColumns, onSearchChange, filteredItems, dtcs])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !dtcs) return <CircularProgress aria-label="Loading..." />
@@ -731,10 +750,8 @@ export function DtcsVariantComponent({
       isHeaderSticky
       isStriped
       aria-label="Diagnostic trouble codes table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       selectedKeys={selectedKeys}
       selectionMode="none"
@@ -769,7 +786,7 @@ export function DtcsVariantComponent({
       <TableBody
         emptyContent={'No DTCs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (
@@ -801,7 +818,6 @@ export function DiagTroubleCodesOverviewComponent({
     'display_trouble_code',
     'text',
     'level',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -953,16 +969,6 @@ export function DiagTroubleCodesOverviewComponent({
 
     return arr
   }, [selectedUsedInVariants])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedLevels,
-    selectedOriginDtcDop,
-    selectedOriginLayers,
-    selectedUsedInVariants,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
@@ -1120,7 +1126,10 @@ export function DiagTroubleCodesOverviewComponent({
               ? dtcWithVarDb.dtc.trouble_code
                   .toString()
                   .toLowerCase()
-                  .includes(searchValue.toLowerCase())
+                  .includes(searchValue.toLowerCase()) ||
+                (
+                  getHexRepresentation(dtcWithVarDb.dtc.trouble_code) || '0x0'
+                ).includes(searchValue.toLowerCase())
               : false
           }
 
@@ -1258,18 +1267,8 @@ export function DiagTroubleCodesOverviewComponent({
     selectedUsedInVariantValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (dtcWithVarDb: DtcWithVariantDatasetInfo, columnKey: React.Key) => {
@@ -1379,30 +1378,9 @@ export function DiagTroubleCodesOverviewComponent({
     [dtcCollection]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -1410,7 +1388,6 @@ export function DiagTroubleCodesOverviewComponent({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -1442,18 +1419,6 @@ export function DiagTroubleCodesOverviewComponent({
             {filteredItems.length} of total {dtcCollection.items.length}{' '}
             diagnostic trouble codes
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -1461,33 +1426,9 @@ export function DiagTroubleCodesOverviewComponent({
     searchValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     filteredItems,
     dtcCollection,
   ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data_collection)
@@ -1498,10 +1439,8 @@ export function DiagTroubleCodesOverviewComponent({
       isHeaderSticky
       isStriped
       aria-label="Diagnostic trouble code table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       selectedKeys={selectedKeys}
       selectionMode="none"
@@ -1536,7 +1475,7 @@ export function DiagTroubleCodesOverviewComponent({
       <TableBody
         emptyContent={'No DTCs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (

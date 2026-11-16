@@ -8,7 +8,7 @@ info:
   description: API documentation of the RESTful HTTP API of the odex.viewer backend
     server to interact with ODX-based diagnostic data.
   title: RESTful HTTP API documentation of the odex.viewer backend server
-  version: "1.0"
+  version: 1.1.0
 servers:
 - url: http://localhost:8080/v1
 tags:
@@ -32,6 +32,8 @@ tags:
   name: Data Object Properties
 - description: Methods for requesting state chart definitions.
   name: State Charts
+- description: Methods for encoding and decoding diagnostic messages via the server.
+  name: Diagnostic Message Encoding and Decoding
 paths:
   /diag-comms:
     get:
@@ -611,6 +613,170 @@ paths:
       tags:
       - Diagnostic Communications
       x-openapi-router-controller: diag_server.openapi_server.controllers.diagnostic_communications_controller
+  ? /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}/messages/{message-perma-id}/decode
+  : post:
+      description: "Decode hexadecimal message bytes using the request or response\
+        \ identified by message-perma-id. The message must belong to the selected\
+        \ diagnostic service, and the service must belong to the selected variant.\
+        \ Decoding returns physical parameter values, including constants and derived\
+        \ parameters. No triggering-request values or bytes are required for decoding.\
+        \ Matching-request parameters are extracted from the supplied message; they\
+        \ are not checked against an original request."
+      operationId: decode_diagnostic_message
+      parameters:
+      - description: ID of the diagnostic data set to fetch
+        explode: false
+        in: path
+        name: diag-data-set-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the variant object to fetch
+        explode: false
+        in: path
+        name: variant-perma-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the diagnostic communication to fetch
+        explode: false
+        in: path
+        name: diag-comm-perma-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - explode: false
+        in: path
+        name: message-perma-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecodeDiagnosticMessageInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosticMessageCodecResult'
+          description: Decoded physical parameter values and normalized hexadecimal
+            message bytes.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/JsonProblem'
+          description: "Invalid hexadecimal data, a message that cannot be decoded\
+            \ using the selected definition, or a message or service that does not\
+            \ belong to the specified parent resource."
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/JsonProblem'
+          description: "The diagnostic data set, variant, service, or message was\
+            \ not found."
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/JsonProblem'
+          description: The request caused an unexpected error.
+      tags:
+      - Diagnostic Message Encoding and Decoding
+      x-openapi-router-controller: diag_server.openapi_server.controllers.diagnostic_message_encoding_and_decoding_controller
+  ? /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/diag-comms/{diag-comm-perma-id}/messages/{message-perma-id}/encode
+  : post:
+      description: "Encode the request or response identified by message-perma-id\
+        \ using its ODX parameter definitions. The message must belong to the selected\
+        \ diagnostic service, and the service must belong to the selected variant.\
+        \ For a request message, parameter_values contains the request values and\
+        \ request_parameter_values must be omitted. For a response message, parameter_values\
+        \ contains the response values and request_parameter_values is required, including\
+        \ an empty object when the request has no required physical values. The backend\
+        \ first encodes the service request from request_parameter_values, then uses\
+        \ those bytes as the triggering request when encoding the response. This applies\
+        \ to positive and negative responses, including responses with matching-request\
+        \ parameters. Clients cannot supply encoded triggering-request bytes. This\
+        \ operation does not transmit data to an ECU."
+      operationId: encode_diagnostic_message
+      parameters:
+      - description: ID of the diagnostic data set to fetch
+        explode: false
+        in: path
+        name: diag-data-set-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the variant object to fetch
+        explode: false
+        in: path
+        name: variant-perma-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: ID of the diagnostic communication to fetch
+        explode: false
+        in: path
+        name: diag-comm-perma-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - explode: false
+        in: path
+        name: message-perma-id
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncodeDiagnosticMessageInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosticMessageCodecResult'
+          description: Encoded message and normalized physical parameter values.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/JsonProblem'
+          description: "Invalid parameter values, missing response request_parameter_values,\
+            \ or a message or service that does not belong to the specified parent\
+            \ resource."
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/JsonProblem'
+          description: "The diagnostic data set, variant, service, or message was\
+            \ not found."
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/JsonProblem'
+          description: The request caused an unexpected error.
+      tags:
+      - Diagnostic Message Encoding and Decoding
+      x-openapi-router-controller: diag_server.openapi_server.controllers.diagnostic_message_encoding_and_decoding_controller
   /diagnostic-data-sets/{diag-data-set-id}/variants/{variant-perma-id}/dops:
     get:
       description: Returns the data object properties from the given BASE-VARIANT
@@ -10393,6 +10559,286 @@ components:
           title: diag_comms
           type: array
       title: StateTransitionWithDiagCommRefs
+    DiagnosticParameterValues:
+      additionalProperties: true
+      description: "Physical values keyed by parameter short name, recursively following\
+        \ the selected ODX definition. Integers and floating-point values use JSON\
+        \ numbers; TEXTTABLE values use the physical text labels as JSON strings,\
+        \ including labels such as \"true\" or \"false\" rather than JSON booleans.\
+        \ Structures use objects, repeated fields use arrays of item values, and multiplexers\
+        \ and table-structure parameters use a two-element array containing the case\
+        \ or table-row short name followed by its physical values. Byte fields use\
+        \ hexadecimal strings with optional spaces, tabs, or line breaks between complete\
+        \ bytes; decoded byte fields are normalized to uppercase hexadecimal byte\
+        \ pairs separated by a single space. DTC-DOP values use numeric physical trouble\
+        \ codes, not display codes or serialized DTC objects. Decoded DTC objects\
+        \ are normalized to these numeric values. When encoding, omit constants, reserved\
+        \ parameters, matching-request parameters, and length or table keys inferred\
+        \ from their associated values. Parameters with defaults may also be omitted.\
+        \ When decoding, constants and derived parameters may be included in the result\
+        \ but must not automatically be treated as editable values."
+      title: parameter_values
+      type: object
+    DiagnosticHexMessage:
+      description: "A nonempty hexadecimal diagnostic message. Complete byte pairs\
+        \ may be contiguous or separated by spaces, tabs, or line breaks. Leading\
+        \ and trailing whitespace is allowed. Odd digit counts and 0x prefixes are\
+        \ not accepted. Results use uppercase byte pairs separated by a single space."
+      example: 19 02 01
+      minLength: 2
+      pattern: "^[ \\t\\r\\n]*([0-9A-Fa-f]{2}[ \\t\\r\\n]*)+$"
+      title: hex_message
+      type: string
+    EncodeDiagnosticMessageInput:
+      additionalProperties: false
+      description: "parameter_values always describes the selected message. If that\
+        \ message is a response, request_parameter_values must also be supplied so\
+        \ the backend can encode its triggering request. This conditional requirement\
+        \ is validated against the selected message definition at runtime. For a request\
+        \ message, request_parameter_values must be omitted. Encoded triggering-request\
+        \ bytes are not accepted."
+      example:
+        parameter_values:
+          response_code: 49
+        request_parameter_values:
+          TestFailed: "true"
+          TestFailedThisOperationCycle: "false"
+          PendingDTC: "false"
+          ConfirmedDTC: "false"
+          TestNotCompletedSinceLastClear: "false"
+          TestFailedSinceLastClear: "false"
+          TestNotCompletedThisOperationCycle: "false"
+          WarningIndicatorRequested: "false"
+      properties:
+        parameter_values:
+          additionalProperties: true
+          description: "Physical values keyed by parameter short name, recursively\
+            \ following the selected ODX definition. Integers and floating-point values\
+            \ use JSON numbers; TEXTTABLE values use the physical text labels as JSON\
+            \ strings, including labels such as \"true\" or \"false\" rather than\
+            \ JSON booleans. Structures use objects, repeated fields use arrays of\
+            \ item values, and multiplexers and table-structure parameters use a two-element\
+            \ array containing the case or table-row short name followed by its physical\
+            \ values. Byte fields use hexadecimal strings with optional spaces, tabs,\
+            \ or line breaks between complete bytes; decoded byte fields are normalized\
+            \ to uppercase hexadecimal byte pairs separated by a single space. DTC-DOP\
+            \ values use numeric physical trouble codes, not display codes or serialized\
+            \ DTC objects. Decoded DTC objects are normalized to these numeric values.\
+            \ When encoding, omit constants, reserved parameters, matching-request\
+            \ parameters, and length or table keys inferred from their associated\
+            \ values. Parameters with defaults may also be omitted. When decoding,\
+            \ constants and derived parameters may be included in the result but must\
+            \ not automatically be treated as editable values."
+          title: parameter_values
+          type: object
+        request_parameter_values:
+          additionalProperties: true
+          description: "Physical values keyed by parameter short name, recursively\
+            \ following the selected ODX definition. Integers and floating-point values\
+            \ use JSON numbers; TEXTTABLE values use the physical text labels as JSON\
+            \ strings, including labels such as \"true\" or \"false\" rather than\
+            \ JSON booleans. Structures use objects, repeated fields use arrays of\
+            \ item values, and multiplexers and table-structure parameters use a two-element\
+            \ array containing the case or table-row short name followed by its physical\
+            \ values. Byte fields use hexadecimal strings with optional spaces, tabs,\
+            \ or line breaks between complete bytes; decoded byte fields are normalized\
+            \ to uppercase hexadecimal byte pairs separated by a single space. DTC-DOP\
+            \ values use numeric physical trouble codes, not display codes or serialized\
+            \ DTC objects. Decoded DTC objects are normalized to these numeric values.\
+            \ When encoding, omit constants, reserved parameters, matching-request\
+            \ parameters, and length or table keys inferred from their associated\
+            \ values. Parameters with defaults may also be omitted. When decoding,\
+            \ constants and derived parameters may be included in the result but must\
+            \ not automatically be treated as editable values."
+          title: parameter_values
+          type: object
+      required:
+      - parameter_values
+      title: EncodeDiagnosticMessageInput
+      type: object
+    DecodeDiagnosticMessageInput:
+      additionalProperties: false
+      example:
+        hex_message: 19 02 01
+      properties:
+        hex_message:
+          description: "A nonempty hexadecimal diagnostic message. Complete byte pairs\
+            \ may be contiguous or separated by spaces, tabs, or line breaks. Leading\
+            \ and trailing whitespace is allowed. Odd digit counts and 0x prefixes\
+            \ are not accepted. Results use uppercase byte pairs separated by a single\
+            \ space."
+          example: 19 02 01
+          minLength: 2
+          pattern: "^[ \\t\\r\\n]*([0-9A-Fa-f]{2}[ \\t\\r\\n]*)+$"
+          title: hex_message
+          type: string
+      required:
+      - hex_message
+      title: DecodeDiagnosticMessageInput
+      type: object
+    DiagnosticBitRange:
+      example:
+        start_bit: 0
+        bit_length: 1
+      properties:
+        start_bit:
+          description: Absolute wire-order bit offset; bit zero is byte zero's most
+            significant bit.
+          minimum: 0
+          title: start_bit
+          type: integer
+        bit_length:
+          minimum: 1
+          title: bit_length
+          type: integer
+      required:
+      - bit_length
+      - start_bit
+      title: DiagnosticBitRange
+      type: object
+    DiagnosticParameterLayout:
+      example:
+        path: path
+        physical_value: ""
+        node_type: node_type
+        related_parameter_path: related_parameter_path
+        ranges:
+        - start_bit: 0
+          bit_length: 1
+        - start_bit: 0
+          bit_length: 1
+        parent_path: parent_path
+        short_name: short_name
+        dop_type: dop_type
+        parameter_type: parameter_type
+      properties:
+        path:
+          description: "Unique decoder node path. Field items use zero-based indices.\
+            \ Containment is defined by parent_path, not by parsing this path."
+          title: path
+          type: string
+        parent_path:
+          description: Path of the containing layout node; null for message-level
+            parameters.
+          nullable: true
+          title: parent_path
+          type: string
+        node_type:
+          description: "Decoder role, such as parameter, item, case, row, environment_data,\
+            \ switch_key, length, end_marker, dop, or value."
+          title: node_type
+          type: string
+        dop_type:
+          description: Actual ODX DOP class used to decode this node.
+          nullable: true
+          title: dop_type
+          type: string
+        related_parameter_path:
+          description: "Path of the switch key, table key, or DTC parameter selecting\
+            \ this node."
+          nullable: true
+          title: related_parameter_path
+          type: string
+        short_name:
+          title: short_name
+          type: string
+        parameter_type:
+          title: parameter_type
+          type: string
+        physical_value:
+          title: physical_value
+        ranges:
+          items:
+            $ref: '#/components/schemas/DiagnosticBitRange'
+          title: ranges
+          type: array
+      required:
+      - parameter_type
+      - path
+      - ranges
+      - short_name
+      title: DiagnosticParameterLayout
+      type: object
+    DiagnosticMessageCodecResult:
+      description: "Normalized message bytes and physical values for the selected\
+        \ message, not the triggering request. Values follow DiagnosticParameterValues."
+      example:
+        hex_message: 19 02 01
+        parameter_layout:
+        - path: path
+          physical_value: ""
+          node_type: node_type
+          related_parameter_path: related_parameter_path
+          ranges:
+          - start_bit: 0
+            bit_length: 1
+          - start_bit: 0
+            bit_length: 1
+          parent_path: parent_path
+          short_name: short_name
+          dop_type: dop_type
+          parameter_type: parameter_type
+        - path: path
+          physical_value: ""
+          node_type: node_type
+          related_parameter_path: related_parameter_path
+          ranges:
+          - start_bit: 0
+            bit_length: 1
+          - start_bit: 0
+            bit_length: 1
+          parent_path: parent_path
+          short_name: short_name
+          dop_type: dop_type
+          parameter_type: parameter_type
+        parameter_values:
+          key: ""
+      properties:
+        hex_message:
+          description: "A nonempty hexadecimal diagnostic message. Complete byte pairs\
+            \ may be contiguous or separated by spaces, tabs, or line breaks. Leading\
+            \ and trailing whitespace is allowed. Odd digit counts and 0x prefixes\
+            \ are not accepted. Results use uppercase byte pairs separated by a single\
+            \ space."
+          example: 19 02 01
+          minLength: 2
+          pattern: "^[ \\t\\r\\n]*([0-9A-Fa-f]{2}[ \\t\\r\\n]*)+$"
+          title: hex_message
+          type: string
+        parameter_values:
+          additionalProperties: true
+          description: "Physical values keyed by parameter short name, recursively\
+            \ following the selected ODX definition. Integers and floating-point values\
+            \ use JSON numbers; TEXTTABLE values use the physical text labels as JSON\
+            \ strings, including labels such as \"true\" or \"false\" rather than\
+            \ JSON booleans. Structures use objects, repeated fields use arrays of\
+            \ item values, and multiplexers and table-structure parameters use a two-element\
+            \ array containing the case or table-row short name followed by its physical\
+            \ values. Byte fields use hexadecimal strings with optional spaces, tabs,\
+            \ or line breaks between complete bytes; decoded byte fields are normalized\
+            \ to uppercase hexadecimal byte pairs separated by a single space. DTC-DOP\
+            \ values use numeric physical trouble codes, not display codes or serialized\
+            \ DTC objects. Decoded DTC objects are normalized to these numeric values.\
+            \ When encoding, omit constants, reserved parameters, matching-request\
+            \ parameters, and length or table keys inferred from their associated\
+            \ values. Parameters with defaults may also be omitted. When decoding,\
+            \ constants and derived parameters may be included in the result but must\
+            \ not automatically be treated as editable values."
+          title: parameter_values
+          type: object
+        parameter_layout:
+          description: "Actual parameter bit ranges in the selected message, collected\
+            \ using its ODX decoder."
+          items:
+            $ref: '#/components/schemas/DiagnosticParameterLayout'
+          title: parameter_layout
+          type: array
+      required:
+      - hex_message
+      - parameter_layout
+      - parameter_values
+      title: DiagnosticMessageCodecResult
+      type: object
     OdxSchemaNames:
       enum:
       - AdditionalAudience
@@ -24717,6 +25163,8 @@ components:
         diag_comm_snref:
           title: diag_comm_snref
           type: string
+        diag_comm:
+          $ref: '#/components/schemas/DiagCommResolved'
         out_param_if_refs:
           items:
             type: string
@@ -24724,7 +25172,7 @@ components:
           type: array
         out_param_ifs:
           items:
-            $ref: '#/components/schemas/Parameter'
+            $ref: '#/components/schemas/SubComponentParamConnectorResolved_out_param_ifs_inner'
           title: out_param_ifs
           type: array
         in_param_if_refs:
@@ -24734,7 +25182,7 @@ components:
           type: array
         in_param_ifs:
           items:
-            $ref: '#/components/schemas/Parameter'
+            $ref: '#/components/schemas/SubComponentParamConnectorResolved_in_param_ifs_inner'
           title: in_param_ifs
           type: array
         perma_id:
@@ -26046,3 +26494,13 @@ components:
       - $ref: '#/components/schemas/EcuVariant'
       - $ref: '#/components/schemas/BaseVariant'
       title: EcuMemConnectorResolved_layers_inner
+    SubComponentParamConnectorResolved_out_param_ifs_inner:
+      anyOf:
+      - $ref: '#/components/schemas/Parameter'
+      - $ref: '#/components/schemas/OutputParam'
+      title: SubComponentParamConnectorResolved_out_param_ifs_inner
+    SubComponentParamConnectorResolved_in_param_ifs_inner:
+      anyOf:
+      - $ref: '#/components/schemas/Parameter'
+      - $ref: '#/components/schemas/InputParam'
+      title: SubComponentParamConnectorResolved_in_param_ifs_inner

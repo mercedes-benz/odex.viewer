@@ -48,8 +48,8 @@ function clearLocalStorage() {
   }
 }
 
-export function clearSettingsStorage() {
-  clearDatabase()
+export async function clearSettingsStorage() {
+  await clearDatabase()
   clearLocalStorage()
 }
 

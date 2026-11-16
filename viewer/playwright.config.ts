@@ -2,24 +2,17 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
-
-/**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
   testDir: './tests',
+  timeout: 60 * 1000,
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Set increased retries on CI, retry only once locally */
-  retries: process.env.CI ? 5 : 2,
+  /* Retry once on CI for diagnostics; do not retry locally. */
+  retries: process.env.CI ? 1 : 0,
   /* Opt out of parallel tests on CI, limit to 2 threads locally */
   workers: process.env.CI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
@@ -29,8 +22,11 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('')`. */
     baseURL: 'http://localhost:3000',
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
+    contextOptions: { reducedMotion: 'reduce' },
+
+    /* Collect trace when test fails. See https://playwright.dev/docs/trace-viewer */
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
 
   /* Configure projects for major browsers */
@@ -67,14 +63,15 @@ export default defineConfig({
   webServer: [
     {
       cwd: './../server',
-      command: 'python -m diag_server.openapi_server',
-      url: 'http://localhost:8080',
+      command:
+        "node -e \"require('node:fs').mkdirSync('../viewer/test-results', { recursive: true })\" && python -u -m diag_server.openapi_server > ../viewer/test-results/backend.log 2>&1",
+      url: 'http://localhost:8080/v1/diagnostic-data-sets',
       reuseExistingServer: false,
     },
     {
       command: 'npm run build && npm run serve-static',
       url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120 * 1000,
     },
   ],

@@ -32,8 +32,8 @@ export default function SettingsPage() {
               className="disabled:gray-200 disabled:bg-gray-50 disabled:text-gray-500"
               color="danger"
               variant="shadow"
-              onPress={() => {
-                clearSettingsStorage()
+              onPress={async () => {
+                await clearSettingsStorage()
                 window.location.reload()
               }}
             >

@@ -12,7 +12,6 @@ test('upload PDX file', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Upload File' })).toBeVisible()
 
   // Upload somersault PDX test data
-  await page.getByRole('button', { name: 'Choose File' }).click()
   await page
     .getByRole('button', { name: 'Choose File' })
     .setInputFiles(

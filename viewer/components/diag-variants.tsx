@@ -182,7 +182,14 @@ export function DiagnosticVariantsComponent({
   const list = useAsyncList({
     async load() {
       return {
-        items: data_variants ? data_variants.items : [],
+        items: data_variants
+          ? data_variants.items.sort((a, b) =>
+              sortItemsBySortDescriptor<DiagnosticVariant>(a, b, {
+                column: 'short_name',
+                direction: 'ascending',
+              })
+            )
+          : [],
       }
     },
     async sort({ items, sortDescriptor }) {
@@ -415,6 +422,11 @@ export function VariantsOverviewComponent({ pageId }: { pageId: string }) {
         items: odx_datasets
           ? resolveVariantsWithDatasetInfo(
               await requestVariantsFromDatasets(odx_datasets.items)
+            ).sort((a, b) =>
+              sortItemsBySortDescriptor<CombinedVariantDatasetType>(a, b, {
+                column: 'var_short_name',
+                direction: 'ascending',
+              })
             )
           : [],
       }

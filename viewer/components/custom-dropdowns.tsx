@@ -44,7 +44,7 @@ export function TableFilterDropdown<Type extends object>({
   selectedFiltersHandler: (keys: SharedSelection) => void
 }) {
   return (
-    <Dropdown>
+    <Dropdown shouldCloseOnScroll={false}>
       <DropdownTrigger>
         <Button
           color={
@@ -126,7 +126,7 @@ export function TableFilterObjectDropdown<Type extends object>({
   selectedFiltersHandler: (keys: SharedSelection) => void
 }) {
   return (
-    <Dropdown>
+    <Dropdown shouldCloseOnScroll={false}>
       <DropdownTrigger>
         <Button
           color={
@@ -209,10 +209,10 @@ export function TableFilterObjectCollectionDropdown<Type extends object>({
     idLabelMappings.entries().map((value) => {
       return { id: value[0], label: value[1] }
     })
-  )
+  ).sort((a, b) => a.label.localeCompare(b.label))
 
   return (
-    <Dropdown>
+    <Dropdown shouldCloseOnScroll={false}>
       <DropdownTrigger>
         <Button
           color={
@@ -361,7 +361,7 @@ export function ParameterTableColumnDropdown({
   }
 
   return (
-    <Dropdown aria-labelledby="Columns Button">
+    <Dropdown aria-labelledby="Columns Button" shouldCloseOnScroll={false}>
       <DropdownTrigger className="hidden sm:flex">
         <Button
           aria-label="Columns Button"
@@ -537,7 +537,7 @@ export function TableFilterDropdownWithExtractorFunc<Type extends object>({
   selectedFiltersHandler: (keys: SharedSelection) => void
 }) {
   return (
-    <Dropdown>
+    <Dropdown shouldCloseOnScroll={false}>
       <DropdownTrigger>
         <Button
           color={
@@ -620,10 +620,10 @@ export function TableFilterObjectCollectionWithExtractorFuncDropdown<
     idLabelMappings.entries().map((value) => {
       return { id: value[0], label: value[1] }
     })
-  )
+  ).sort((a, b) => a.label.localeCompare(b.label))
 
   return (
-    <Dropdown>
+    <Dropdown shouldCloseOnScroll={false}>
       <DropdownTrigger>
         <Button
           color={

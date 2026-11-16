@@ -4,7 +4,6 @@
 import { Card, CardBody } from '@heroui/card'
 import { Input } from '@heroui/input'
 import { Link } from '@heroui/link'
-import { Pagination } from '@heroui/pagination'
 import { CircularProgress } from '@heroui/progress'
 import {
   Selection,
@@ -18,13 +17,12 @@ import {
 import { useAsyncList } from '@react-stately/data'
 import React from 'react'
 
-import client, {
-  DiagnosticDataSetDescriptor,
+import {
   DiagComm,
   DiagCommDetails,
   DiagCommGenericInfo,
   DiagCommInfo,
-  DiagCommsOfVariantsOfDataSetsCollection,
+  DiagnosticDataSetDescriptor,
   DiagnosticVariant,
   isDiagService,
   useQuery,
@@ -40,8 +38,6 @@ import {
   DiagnosticClassChip,
   FunctionalClassChip,
   TransmissionModeChip,
-  NextPageButton,
-  PreviousPageButton,
 } from '@/components/commons'
 import {
   TableColumnDropdown,
@@ -52,9 +48,9 @@ import {
   TableFilterObjectDropdown,
 } from '@/components/custom-dropdowns'
 import { SearchIcon } from '@/components/icons'
+import { useSelectionWithIndexedDB } from '@/storage/settings'
 import { ColumnDefinition } from '@/types'
 import { getHexRepresentation, sortItemsBySortDescriptor } from '@/utils/utils'
-import { useSelectionWithIndexedDB } from '@/storage/settings'
 
 export function DiagCommMetadata({
   diagCommData,
@@ -256,7 +252,6 @@ export function DiagComms({
     'short_name',
     'semantic',
     'comm_type',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -321,63 +316,35 @@ export function DiagComms({
   React.useEffect(() => {
     if (diag_comms) {
       diagComms.reload()
-      resolveFunctionalClassMappings(diag_comms.items)
+
+      const functionalClasses = new Map<string, string>()
+
+      if (diag_comms.items && diag_comms.items.length > 0) {
+        // Resolve all distinct functional classes from the list of diag_comms items
+        diag_comms.items.forEach(({ functional_class_refs }) => {
+          if (functional_class_refs && functional_class_refs.length > 0) {
+            functional_class_refs.forEach(
+              ({ resolved_object_perma_id, resolved_object_short_name }) =>
+                functionalClasses.set(
+                  resolved_object_perma_id
+                    ? resolved_object_perma_id
+                    : 'unresolved',
+                  resolved_object_short_name
+                    ? resolved_object_short_name
+                    : 'UNKNOWN'
+                )
+            )
+          }
+        })
+      }
+
+      setFunctionalClassMap(functionalClasses)
     }
   }, [diag_comms])
 
   const [functionalClassMap, setFunctionalClassMap] = React.useState<
     Map<string, string>
   >(new Map<string, string>())
-
-  const resolveFunctionalClassMappings = (diagComms: DiagComm[]) => {
-    if (diagComms) {
-      const functional_class_ids = new Set<string>(
-        diagComms.flatMap(({ functional_class_refs }) =>
-          functional_class_refs
-            ? functional_class_refs.flatMap(({ resolved_object_perma_id }) =>
-                resolved_object_perma_id
-                  ? resolved_object_perma_id
-                  : 'unresolved'
-              )
-            : []
-        )
-      )
-
-      const respPromises = Array.from(functional_class_ids).map(
-        (func_class_id) => {
-          return client.GET(
-            '/diagnostic-data-sets/{diag-data-set-id}/objects/{perma-id}',
-            {
-              params: {
-                path: {
-                  'diag-data-set-id': containerId,
-                  'perma-id': func_class_id,
-                },
-              },
-            }
-          )
-        }
-      )
-
-      const results = Promise.all(respPromises)
-
-      results.then((responses) => {
-        const mappingResult = new Map<string, string>(functionalClassMap)
-
-        for (const response of responses) {
-          const func_class_name = response.data?.short_name
-          const func_class_id = response.response.url.split('/').pop()
-
-          mappingResult.set(
-            func_class_id ? func_class_id : 'unresolved',
-            func_class_name ? func_class_name : 'UNKNOWN'
-          )
-        }
-
-        setFunctionalClassMap(mappingResult)
-      })
-    }
-  }
 
   // Introduce all state variables for searching and filtering the diag_comms
   const [searchValue, setSearchValue] = React.useState('')
@@ -440,19 +407,6 @@ export function DiagComms({
 
     return arr
   }, [selectedFunctClasses])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedSemantics,
-    selectedAddressings,
-    selectedCommTypes,
-    selectedDiagClasses,
-    selectedFunctClasses,
-    selectedOriginLayers,
-    selectedUdsServices,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
@@ -548,14 +502,14 @@ export function DiagComms({
     {
       label: 'FUNCTIONAL_CLASSES',
       key: 'functional_class_refs',
-      sortable: true,
+      sortable: false,
       filter: (
         <TableFilterObjectCollectionDropdown<DiagComm>
           filterItems={diagComms}
           filterKey="functional_class_refs"
           filterLabel="FUNCTIONAL_CLASSES"
           idLabelMappings={functionalClassMap}
-          objectPropertyName="resolved_object_id"
+          objectPropertyName="resolved_object_perma_id"
           selectedFilters={selectedFunctClasses}
           selectedFiltersHandler={setSelectedFunctClasses}
         />
@@ -757,18 +711,8 @@ export function DiagComms({
     selectedAddressingValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (diagComm: DiagComm, columnKey: React.Key) => {
@@ -866,30 +810,9 @@ export function DiagComms({
     [diagComms, functionalClassMap]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -897,7 +820,6 @@ export function DiagComms({
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -929,52 +851,10 @@ export function DiagComms({
             {filteredItems.length} of total {diagComms.items.length} diagnostic
             communications
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
-  }, [
-    searchValue,
-    visibleColumns,
-    onSearchChange,
-    onRowsPerPageChange,
-    filteredItems,
-    diagComms,
-  ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
+  }, [searchValue, visibleColumns, onSearchChange, filteredItems, diagComms])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !diag_comms)
@@ -985,10 +865,8 @@ export function DiagComms({
       isHeaderSticky
       isStriped
       aria-label="Diagnostic communications table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       data-testid="diag-comm-table"
       selectedKeys={selectedKeys}
@@ -1024,7 +902,7 @@ export function DiagComms({
       <TableBody
         emptyContent={'No DIAG-COMMs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (
@@ -1050,7 +928,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     'short_name',
     'semantic',
     'comm_type',
-    'actions',
   ])
 
   const [visibleColumns, setVisibleColumns] = useSelectionWithIndexedDB(
@@ -1085,6 +962,14 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       },
     },
     { keepPreviousData: true }
+  )
+
+  const [functionalClassMap, setFunctionalClassMap] = React.useState<
+    Map<string, string>
+  >(new Map<string, string>())
+
+  const [variantMap, setVariantMap] = React.useState<Map<string, string>>(
+    new Map<string, string>()
   )
 
   const diagCollection = useAsyncList({
@@ -1144,86 +1029,52 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     if (data_collection !== undefined) {
       diagCollection.reload()
 
-      if (
-        data_collection.diag_comms !== undefined &&
-        data_collection.diag_comms.length > 0
-      ) {
-        resolveFunctionalClassMappings(
-          data_collection.diag_comms
-            .map((entry) => entry.diagComm)
-            .filter((entry) => entry !== undefined)
-        )
-        resolveVariantMappings(data_collection)
-      }
-    }
-  }, [data_collection])
+      const functionalClasses = new Map<string, string>()
 
-  const [functionalClassMap, setFunctionalClassMap] = React.useState<
-    Map<string, string>
-  >(new Map<string, string>())
+      // Resolve all distinct functional classes from the list of diag_comms items
+      if (data_collection.diag_comms && data_collection.diag_comms.length > 0) {
+        const diagComms = data_collection.diag_comms
+          .map((entry) => entry.diagComm)
+          .filter((entry) => entry !== undefined)
 
-  const resolveFunctionalClassMappings = (diagComms: DiagCommGenericInfo[]) => {
-    if (diagComms && diagComms) {
-      const functional_class_ids = new Set<number>(
-        diagComms.flatMap(({ functional_class_refs }) =>
-          functional_class_refs
-            ? functional_class_refs.flatMap(
-                ({ resolved_object_ephemeral_id }) =>
+        diagComms.forEach(({ functional_class_refs }) => {
+          if (functional_class_refs && functional_class_refs.length > 0) {
+            functional_class_refs.forEach(
+              ({ resolved_object_ephemeral_id, resolved_object_short_name }) =>
+                functionalClasses.set(
                   resolved_object_ephemeral_id
-                    ? resolved_object_ephemeral_id
-                    : 0
-              )
-            : []
-        )
-      )
+                    ? resolved_object_ephemeral_id.toString()
+                    : 'unresolved',
+                  resolved_object_short_name
+                    ? resolved_object_short_name
+                    : 'UNKNOWN'
+                )
+            )
+          }
+        })
 
-      const respPromises = Array.from(functional_class_ids).map(
-        (func_class_id) => {
-          return client.GET('/objects/{ephemeral-id}', {
-            params: {
-              path: { 'ephemeral-id': func_class_id },
-            },
-          })
-        }
-      )
+        setFunctionalClassMap(functionalClasses)
+      }
 
-      const results = Promise.all(respPromises)
+      const resolveVariantMappings = () => {
+        const mappingResult = new Map<string, string>()
 
-      results.then((responses) => {
-        const mappingResult = new Map<string, string>(functionalClassMap)
-
-        for (const response of responses) {
-          const func_class_name = response.data?.short_name
-          const func_class_id = response.response.url.split('/').pop()
-
-          mappingResult.set(
-            func_class_id ? func_class_id : 'unresolved',
-            func_class_name ? func_class_name : 'UNKNOWN'
+        if (data_collection.variants && data_collection.variants.length > 0) {
+          data_collection.variants.forEach((variant) =>
+            mappingResult.set(variant.perma_id, variant.short_name)
           )
         }
 
-        setFunctionalClassMap(mappingResult)
-      })
+        setVariantMap((mappings) => {
+          mappings.forEach((value, key) => mappingResult.set(key, value))
+
+          return mappingResult
+        })
+      }
+
+      resolveVariantMappings()
     }
-  }
-
-  const [variantMap, setVariantMap] = React.useState<Map<string, string>>(
-    new Map<string, string>()
-  )
-
-  const resolveVariantMappings = (
-    dcvCollection: DiagCommsOfVariantsOfDataSetsCollection
-  ) => {
-    if (dcvCollection) {
-      const mappingResult = new Map<string, string>(variantMap)
-
-      dcvCollection.variants?.forEach((variant) =>
-        mappingResult.set(variant.perma_id, variant.short_name)
-      )
-
-      setVariantMap(mappingResult)
-    }
-  }
+  }, [data_collection])
 
   // Introduce all state variables for searching and filtering the diag_comms
   const [searchValue, setSearchValue] = React.useState('')
@@ -1286,19 +1137,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
 
     return arr
   }, [selectedUsedInVariants])
-
-  // Jump back to page 1, if one of the column filters is changed
-  React.useEffect(() => {
-    setPage(1)
-  }, [
-    selectedSemantics,
-    selectedUsedInVariants,
-    selectedCommTypes,
-    selectedDiagClasses,
-    selectedFunctClasses,
-    selectedOriginLayers,
-    selectedUdsServices,
-  ])
 
   // Define the table columns, the list of initially visible columns and a related state variable
   const columns: ColumnDefinition[] = [
@@ -1417,16 +1255,17 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     {
       label: 'FUNCTIONAL_CLASSES',
       key: 'functional_class_refs',
-      sortable: true,
+      sortable: false,
       filter: (
         <TableFilterObjectCollectionWithExtractorFuncDropdown<DiagCommWithVariantDatasetInfo>
           filterItems={diagCollection}
           filterLabel="FUNCTIONAL_CLASSES"
           filterValueExtractorFunc={(obj) =>
-            obj.diagComm.functional_class_refs
+            obj.diagComm.functional_class_refs &&
+            obj.diagComm.functional_class_refs.length > 0
               ? obj.diagComm.functional_class_refs
                   .map((value) => {
-                    value.resolved_object_perma_id?.toString()
+                    return value.resolved_object_ephemeral_id?.toString()
                   })
                   .filter((value) => value !== undefined)
               : []
@@ -1532,8 +1371,10 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
             result = diagCommWithVarDb.diagComm.functional_class_refs
               ? diagCommWithVarDb.diagComm.functional_class_refs.some(
                   (item) => {
-                    const class_name = item.resolved_object_perma_id
-                      ? functionalClassMap.get(item.resolved_object_perma_id)
+                    const class_name = item.resolved_object_ephemeral_id
+                      ? functionalClassMap.get(
+                          item.resolved_object_ephemeral_id.toString()
+                        )
                       : undefined
 
                     return class_name
@@ -1622,9 +1463,9 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
         (diagCommWithVarDb) =>
           diagCommWithVarDb.diagComm.functional_class_refs
             ? diagCommWithVarDb.diagComm.functional_class_refs.some((item) =>
-                item.resolved_object_perma_id
+                item.resolved_object_ephemeral_id
                   ? selectedFunctClassValues.includes(
-                      item.resolved_object_perma_id.toString()
+                      item.resolved_object_ephemeral_id.toString()
                     )
                   : false
               )
@@ -1669,18 +1510,8 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     selectedUsedInVariantValues,
   ])
 
-  // Define state variables for pagination and row selection
+  // Define state variables for row selection
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]))
-  const [rowsPerPage, setRowsPerPage] = React.useState(25)
-  const [page, setPage] = React.useState(1)
-  const pages = Math.ceil(filteredItems.length / rowsPerPage)
-
-  const visible_items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage
-    const end = start + rowsPerPage
-
-    return filteredItems.slice(start, end)
-  }, [page, filteredItems, rowsPerPage])
 
   const renderCell = React.useCallback(
     (
@@ -1812,30 +1643,9 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     [diagCollection, functionalClassMap]
   )
 
-  const onNextPage = React.useCallback(() => {
-    if (page < pages) {
-      setPage(page + 1)
-    }
-  }, [page, pages])
-
-  const onPreviousPage = React.useCallback(() => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }, [page])
-
-  const onRowsPerPageChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      setRowsPerPage(Number(e.target.value))
-      setPage(1)
-    },
-    []
-  )
-
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
       setSearchValue(value)
-      setPage(1)
     } else {
       setSearchValue('')
     }
@@ -1843,7 +1653,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
 
   const onClear = React.useCallback(() => {
     setSearchValue('')
-    setPage(1)
   }, [])
 
   const topContent = React.useMemo(() => {
@@ -1875,18 +1684,6 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
             {filteredItems.length} of total {diagCollection.items.length}{' '}
             diagnostic communications
           </span>
-          <label className="flex items-center text-small">
-            Rows per page:
-            <select
-              className="bg-transparent outline-none text-small"
-              onChange={onRowsPerPageChange}
-            >
-              <option value="25">25</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </label>
         </div>
       </div>
     )
@@ -1894,33 +1691,9 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
     searchValue,
     visibleColumns,
     onSearchChange,
-    onRowsPerPageChange,
     filteredItems,
     diagCollection,
   ])
-
-  const bottomContent = React.useMemo(() => {
-    return (
-      <div className="py-2 px-2 flex justify-between items-center">
-        <Pagination
-          isCompact
-          showControls
-          showShadow
-          color="primary"
-          page={page}
-          total={pages}
-          onChange={setPage}
-        />
-        <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <PreviousPageButton
-            isDisabled={pages === 1}
-            onPress={onPreviousPage}
-          />
-          <NextPageButton isDisabled={pages === 1} onPress={onNextPage} />
-        </div>
-      </div>
-    )
-  }, [selectedKeys, filteredItems, page, pages])
 
   if (error) return <ApiError error={error} />
   if (isLoading || !data_collection)
@@ -1931,10 +1704,8 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       isHeaderSticky
       isStriped
       aria-label="Diagnostic communications table"
-      bottomContent={bottomContent}
-      bottomContentPlacement="outside"
       classNames={{
-        wrapper: 'max-h-[382px], min-w-full',
+        wrapper: 'max-h-[min(500px,60vh)] min-w-full overflow-y-auto',
       }}
       data-testid="diag-comm-table"
       selectedKeys={selectedKeys}
@@ -1970,7 +1741,7 @@ export function DiagCommsOverviewComponent({ pageId }: { pageId: string }) {
       <TableBody
         emptyContent={'No DIAG-COMMs found'}
         isLoading={isLoading}
-        items={visible_items}
+        items={filteredItems}
         loadingContent={<CircularProgress aria-label="Loading..." />}
       >
         {(item) => (
