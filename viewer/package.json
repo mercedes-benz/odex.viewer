@@ -93,7 +93,7 @@
     "openapi-typescript": "^7.5.2",
     "postcss": "8.5.23",
     "prettier": "3.5.3",
-    "serve": "^14.2.5",
+    "serve": "^14.2.8",
     "tailwind-variants": "3.1.0",
     "tailwindcss": "4.1.12",
     "typescript": "5.8.2"
