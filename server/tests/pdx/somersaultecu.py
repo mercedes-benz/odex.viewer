@@ -2319,7 +2319,7 @@ def compu_code_i2p(internal: int) -> int:
       return internal * 2 - 5
   else:
       return internal
-            
+
 def compu_code_p2i(physical: int) -> int:
   if (physical > 100):
       return round((physical - 5) / 2)
