@@ -78,9 +78,9 @@ def upload_diagnostic_data_to_server(data_type, metadata=None, file_content=None
 
     :param data_type: The type of diagnostic data to fetch
     :type data_type: dict | bytes
-    :param metadata: 
+    :param metadata:
     :type metadata: dict | bytes
-    :param file_content: 
+    :param file_content:
     :type file_content: werkzeug.datastructures.FileStorage
     :param body: The raw request body
 
