@@ -30,7 +30,7 @@ def frontend(path: str | None = None) -> Response:
 
     if const.DIAG_UI_STATIC_EXPORT_PATH == DEFAULT_PKG_UI_STATIC_EXPORT_PATH:
         mimetype = 'text/html'
-        
+
         if not path or path == '' or path.startswith('index'):
             data = pkg_resources.files('diag_server.openapi_server.frontend').joinpath('index.html').read_bytes()
         elif ext is not None and len(ext) > 0 and not path.endswith('.html'):
@@ -54,23 +54,23 @@ def frontend(path: str | None = None) -> Response:
 def create_app() -> FlaskApp:
     # TODO: Deactivate response validation due to problems with the use of "oneOf" in schema definitions, e.g., for representing nesting in SDGs
     app = connexion.App(__name__, specification_dir='./openapi/', validate_responses=False)
-    
+
     # Check if the resolved or default frontend export path does exist, if not look for "frontend" directory within the server folder, i.e., DEFAULT_UI_STATIC_PATH
     if not os.path.isdir(const.DEFAULT_DEV_UI_STATIC_EXPORT_PATH) or const.DIAG_UI_STATIC_EXPORT_PATH is None:
         logger.debug("The configured frontend export path does not exist: %s. Instead the default 'frontend' directory within the server folder is used.",
                 const.DIAG_UI_STATIC_EXPORT_PATH)
-        
+
         const.DIAG_UI_STATIC_EXPORT_PATH = DEFAULT_PKG_UI_STATIC_EXPORT_PATH
         logger.warning("The default frontend export path is used: %s. Please make sure to build the frontend of odex.viewer and export it to this path or set the environment variable 'DIAG_UI_STATIC_EXPORT_PATH' to the correct path.",
                 const.DIAG_UI_STATIC_EXPORT_PATH)
-        
+
 
     if const.DIAG_SERVER_SERVE_UI_ENABLED and os.path.isdir(const.DIAG_UI_STATIC_EXPORT_PATH) and os.listdir(const.DIAG_UI_STATIC_EXPORT_PATH):
         global frontend_path_rel
-        
+
         logger.info("Serving the frontend of odex.viewer via the backend server is activated. Static files are served from the following folder: %s.",
                 const.DIAG_UI_STATIC_EXPORT_PATH)
-        
+
         # Due to the different 'current working directories' of the python interpretor and the Flask server, we have to resolve the actual relative path between them
         flask_path = os.path.abspath(app.app.root_path)
         frontend_files_path = os.path.abspath(const.DIAG_UI_STATIC_EXPORT_PATH)

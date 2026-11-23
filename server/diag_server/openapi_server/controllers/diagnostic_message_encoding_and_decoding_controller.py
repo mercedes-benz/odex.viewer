@@ -24,9 +24,9 @@ def decode_diagnostic_message(diag_data_set_id, variant_perma_id, diag_comm_perm
     :type variant_perma_id: str
     :param diag_comm_perma_id: ID of the diagnostic communication to fetch
     :type diag_comm_perma_id: str
-    :param message_perma_id: 
+    :param message_perma_id:
     :type message_perma_id: str
-    :param decode_diagnostic_message_input: 
+    :param decode_diagnostic_message_input:
     :type decode_diagnostic_message_input: dict | bytes
     :param body: The raw request body
 
@@ -52,9 +52,9 @@ def encode_diagnostic_message(diag_data_set_id, variant_perma_id, diag_comm_perm
     :type variant_perma_id: str
     :param diag_comm_perma_id: ID of the diagnostic communication to fetch
     :type diag_comm_perma_id: str
-    :param message_perma_id: 
+    :param message_perma_id:
     :type message_perma_id: str
-    :param encode_diagnostic_message_input: 
+    :param encode_diagnostic_message_input:
     :type encode_diagnostic_message_input: dict | bytes
     :param body: The raw request body
 
